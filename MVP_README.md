@@ -19,6 +19,16 @@ Notes
 - This MVP uses a mock LLM adapter that returns deterministic structured outputs.
 - The validator uses jsonschema to enforce structured outputs; failing validation halts the run and signals a manual review point.
 - Replace MockLLMAdapter with a real LLM adapter when ready; ensure outputs are validated before accepting.
+- The backlog is loaded from `backlog.md`, and engineering tasks create a feature branch before validation and commit flow.
+- Pull requests are targeted at `develop` when GitHub auth is available; otherwise the workflow logs a skip rather than failing the run.
+
+Story-first git workflow
+
+1. Load the current backlog from `backlog.md`.
+2. Create a feature branch from the repo’s base branch (`develop`, falling back to `main`/`master`).
+3. Run the local validation command for the task.
+4. Commit the changes with a story-scoped commit message when validation passes.
+5. Open a pull request into `develop` when GitHub credentials are configured.
 
 Next steps (suggested):
 - Add persistence (artifact store) and provenance metadata
