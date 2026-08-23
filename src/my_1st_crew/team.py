@@ -5,6 +5,7 @@ from typing import Dict, Any
 from .backlog_adapter import MarkdownBacklogAdapter
 from .git_workflow import GitWorkflow
 from .llm_adapter import MockLLMAdapter
+from .project_context import ProjectContext
 from .validator import Validator
 
 
@@ -36,12 +37,14 @@ class Crew:
         with open(task_file, "r", encoding="utf-8") as f:
             self.tasks = yaml.safe_load(f) or {}
 
+        self.project_context = ProjectContext(project_root)
         self.backlog_adapter = MarkdownBacklogAdapter(project_root)
         self.backlog = self.backlog_adapter.load()
         self.git_workflow = GitWorkflow(project_root)
         self.adapter = MockLLMAdapter()
         self.validator = Validator()
         self.artifacts = {}
+        self.validation_command = self.project_context.test_command or "python -m compileall ."
 
     def kickoff(self, inputs: Dict[str, Any]):
         """Run tasks sequentially using the provided inputs."""
@@ -53,11 +56,11 @@ class Crew:
             agent_cfg = self.agents.get(agent_id, {})
             story = self._story_for_task(task_name, context)
             if task_name in self.ENGINEER_TASKS:
-                branch_name = self.git_workflow.ensure_story_branch(story)
+                branch_name = self.git_workflow.ensure_story_branch(story, base_branch=self.project_context.default_branch)
                 if branch_name:
                     context["current_branch"] = branch_name
                     context["current_story"] = story
-                    print(f"\n--- Working on story branch: {branch_name} ---")
+                    print(f"\n--- Working on story branch: {branch_name} (base={self.project_context.default_branch}) ---")
 
             prompt = self._build_prompt(task_name, task_cfg, agent_cfg, context)
 
@@ -77,12 +80,17 @@ class Crew:
                 commit_result = self.git_workflow.commit_story(
                     task_name=task_name,
                     story=story,
-                    validation_command="PYTHONPATH=src python -m compileall src",
+                    validation_command=self.validation_command,
                 )
                 results[task_name]["git"] = commit_result
-                if commit_result.get("status") == "committed":
-                    pr_result = self.git_workflow.create_pr_for_branch(story, base_branch="develop")
+                if commit_result.get("status") == "committed" and os.getenv("AUTO_CREATE_PR", "").lower() == "true":
+                    pr_result = self.git_workflow.create_pr_for_branch(story, base_branch=self.project_context.default_branch)
                     results[task_name]["pull_request"] = pr_result
+                elif commit_result.get("status") == "committed":
+                    results[task_name]["pull_request"] = {
+                        "status": "skipped",
+                        "reason": "AUTO_CREATE_PR is not enabled for this environment",
+                    }
 
             context[task_name] = response
             self.artifacts[task_name] = response
@@ -107,7 +115,9 @@ class Crew:
             f"Inputs: {context.get('inputs')}\n\n"
             f"Current backlog: {backlog_summary}\n\n"
             f"Current story: {story_id}\n"
-            f"Working branch: {branch_name or 'not set'}\n\n"
+            f"Working branch: {branch_name or 'not set'}\n"
+            f"Detected repo stack: {self.project_context.language}\n"
+            f"Suggested validation command: {self.validation_command}\n\n"
             "Please produce structured JSON matching the expected output type."
         )
         return prompt

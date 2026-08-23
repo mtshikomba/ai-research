@@ -80,5 +80,6 @@ The repo expects `.env` to contain an `OPENAI_API_KEY` for a real CrewAI run, bu
 - README.md describes the default CrewAI user flow (`crewai run`).
 - `MVP_README.md` describes the local, mock-LLM validation flow and is the best source for the repo’s minimal working example.
 - The repo’s lightweight MVP now treats `backlog.md` as the source of truth for story work and uses a separate git workflow to create feature branches and validate before commit.
+- A generic `ProjectContext` layer detects the target repository’s stack, default branch, and validation commands so the agent can be reused in other source-code projects without hard-coded repo assumptions.
 - PR creation is intentionally gated behind GitHub authentication: if credentials are not configured, the helper logs a skip instead of failing the agent run.
 - There are currently no automated tests or lint configuration files in the root project (no `pytest.ini`, no `ruff` config, no `tox`, and no `tests` implementations committed yet).

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+from subprocess import TimeoutExpired
 from typing import Any, Dict, Optional
 
 
@@ -16,7 +17,7 @@ class GitWorkflow:
     def __init__(self, project_root: str):
         self.project_root = project_root
 
-    def ensure_story_branch(self, story: Optional[Dict[str, Any]]) -> Optional[str]:
+    def ensure_story_branch(self, story: Optional[Dict[str, Any]], base_branch: Optional[str] = None) -> Optional[str]:
         repo_root = self._repo_root()
         if not repo_root:
             return None
@@ -25,7 +26,7 @@ class GitWorkflow:
         title = str((story or {}).get("title", "untitled-story")).strip() or "untitled-story"
         branch_name = self._branch_name_for_story(story_id, title)
 
-        base_branch = self._preferred_base_branch()
+        base_branch = base_branch or self._preferred_base_branch()
         if not base_branch:
             return None
 
@@ -45,7 +46,10 @@ class GitWorkflow:
         if not repo_root:
             return {"status": "skipped", "reason": "git repo not detected"}
 
-        validation = self.run_validation(validation_command)
+        try:
+            validation = self.run_validation(validation_command)
+        except TimeoutExpired:
+            return {"status": "validation_failed", "command": validation_command, "stdout": "", "stderr": "validation timed out"}
         if validation.returncode != 0:
             return {
                 "status": "validation_failed",
@@ -85,7 +89,10 @@ class GitWorkflow:
             str((story or {}).get("title", "story")).strip() or "story"
         )
 
-        push = self._git("push", "--set-upstream", "origin", branch_name, check=False)
+        try:
+            push = self._git("push", "--set-upstream", "origin", branch_name, check=False, timeout=20)
+        except TimeoutExpired:
+            return {"status": "skipped", "reason": "git push timed out while contacting the remote repo"}
         if push.returncode != 0:
             return {
                 "status": "skipped",
@@ -96,12 +103,16 @@ class GitWorkflow:
         if self._command_exists("gh"):
             title = f"feat({branch_name})"
             body = f"## Summary\n\nThis PR was created from `{branch_name}` into `{base_branch}`."
-            pr = subprocess.run(
-                ["gh", "pr", "create", "--base", base_branch, "--head", branch_name, "--title", title, "--body", body],
-                cwd=self.project_root,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                pr = subprocess.run(
+                    ["gh", "pr", "create", "--base", base_branch, "--head", branch_name, "--title", title, "--body", body],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
+            except TimeoutExpired:
+                return {"status": "skipped", "reason": "gh PR creation timed out"}
             if pr.returncode == 0:
                 return {"status": "opened", "branch": branch_name, "url": pr.stdout.strip()}
             return {
@@ -121,26 +132,30 @@ class GitWorkflow:
                     "base": base_branch,
                     "body": f"## Summary\n\nThis PR was created from `{branch_name}` into `{base_branch}`.",
                 }
-                response = subprocess.run(
-                    [
-                        "curl",
-                        "-sS",
-                        "-X",
-                        "POST",
-                        "-H",
-                        "Accept: application/vnd.github+json",
-                        "-H",
-                        f"Authorization: Bearer {token}",
-                        "-H",
-                        "X-GitHub-Api-Version: 2022-11-28",
-                        "https://api.github.com/repos/{repo}/pulls".format(repo=repo),
-                        "-d",
-                        json.dumps(payload),
-                    ],
-                    cwd=self.project_root,
-                    capture_output=True,
-                    text=True,
-                )
+                try:
+                    response = subprocess.run(
+                        [
+                            "curl",
+                            "-sS",
+                            "-X",
+                            "POST",
+                            "-H",
+                            "Accept: application/vnd.github+json",
+                            "-H",
+                            f"Authorization: Bearer {token}",
+                            "-H",
+                            "X-GitHub-Api-Version: 2022-11-28",
+                            "https://api.github.com/repos/{repo}/pulls".format(repo=repo),
+                            "-d",
+                            json.dumps(payload),
+                        ],
+                        cwd=self.project_root,
+                        capture_output=True,
+                        text=True,
+                        timeout=20,
+                    )
+                except TimeoutExpired:
+                    return {"status": "skipped", "reason": "GitHub API PR creation timed out"}
                 if response.returncode == 0:
                     payload_data = json.loads(response.stdout or "{}")
                     if payload_data.get("html_url"):
@@ -158,7 +173,7 @@ class GitWorkflow:
         }
 
     def run_validation(self, command: str):
-        return subprocess.run(command, cwd=self.project_root, shell=True, capture_output=True, text=True)
+        return subprocess.run(command, cwd=self.project_root, shell=True, capture_output=True, text=True, timeout=60)
 
     def _repo_root(self) -> Optional[str]:
         result = subprocess.run(["git", "-C", self.project_root, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
@@ -208,8 +223,8 @@ class GitWorkflow:
             return None
         return f"{match.group('owner')}/{match.group('repo')}"
 
-    def _git(self, *args, check: bool = True):
-        result = subprocess.run(["git", "-C", self.project_root, *args], capture_output=True, text=True)
+    def _git(self, *args, check: bool = True, timeout: Optional[int] = None):
+        result = subprocess.run(["git", "-C", self.project_root, *args], capture_output=True, text=True, timeout=timeout)
         if check and result.returncode != 0:
             raise RuntimeError(f"git command failed: {' '.join(args)}\n{result.stderr or result.stdout}")
         return result

@@ -39,6 +39,10 @@ This command initializes the my_1st_crew Crew, assembling the agents and assigni
 
 This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
 
+## Reusing this workflow in another repo
+
+The project now includes a generic `ProjectContext` discovery layer in `src/my_1st_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
+
 ## Understanding Your Crew
 
 The my_1st_crew Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
