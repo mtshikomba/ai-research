@@ -19,9 +19,17 @@ class Crew:
 
     def __init__(self, project_root: str):
         self.project_root = project_root
-        self.config_dir = os.path.join(project_root, "src", "my_1st_crew", "config")
-        if not os.path.isdir(self.config_dir):
-            self.config_dir = os.path.join(project_root, "config")
+        # Prefer config in target repo when present, otherwise fall back to the agent package config
+        candidate_config_1 = os.path.join(project_root, "src", "my_1st_crew", "config")
+        candidate_config_2 = os.path.join(project_root, "config")
+        if os.path.isdir(candidate_config_1):
+            self.config_dir = candidate_config_1
+        elif os.path.isdir(candidate_config_2):
+            self.config_dir = candidate_config_2
+        else:
+            # fallback to the config bundled with this agent package
+            agent_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            self.config_dir = os.path.join(agent_repo_root, "src", "my_1st_crew", "config")
 
         agent_file = os.path.join(self.config_dir, "mvp_agents.yaml")
         task_file = os.path.join(self.config_dir, "mvp_tasks.yaml")
