@@ -1,0 +1,26 @@
+{
+  "task": "frontend_development_task",
+  "created_at": "2026-08-24T01:08:24.238061Z",
+  "artifact": {
+    "prompt": "Agent role: Frontend Engineer\nGoal: Create responsive, intuitive, and high-performing user interfaces.\n\nTask: Create frontend components consistent with the API contract.\n\nInputs: {'project_requirement': 'Build a secure user authentication system with email/password and Google OAuth.'}\n\nCurrent backlog: Current backlog:\n- STORY-1: User can sign up with email\n- STORY-2: User can sign in securely\n\nCurrent story: STORY-1\nWorking branch: feature/story-1-user-can-sign-up-with-email\nDetected repo stack: python\nSuggested validation command: python -m compileall .\n\nPlease produce structured JSON matching the expected output type.",
+    "model": {
+      "name": "mock",
+      "type": "MockLLMAdapter"
+    },
+    "output": {
+      "files": {
+        "app.py": "def hello():\n    return 'hello'\n",
+        "requirements.txt": "fastapi\nuvicorn\n"
+      }
+    },
+    "validation": {
+      "valid": true,
+      "errors": ""
+    },
+    "task": "frontend_development_task",
+    "git": {
+      "branch": "feature/story-1-user-can-sign-up-with-email",
+      "commit": "0f878d54e6a334b957928d6be6e4422e2312506b"
+    }
+  }
+}

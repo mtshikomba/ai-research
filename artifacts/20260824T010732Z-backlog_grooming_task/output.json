@@ -1,0 +1,12 @@
+{
+  "stories": [
+    {
+      "id": "STORY-1",
+      "title": "User can sign up with email",
+      "acceptance": [
+        "Given a new user, when they sign up with email and password, then an account is created"
+      ],
+      "priority": "high"
+    }
+  ]
+}
