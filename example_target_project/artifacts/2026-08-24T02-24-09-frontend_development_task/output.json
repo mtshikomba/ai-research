@@ -1,0 +1,6 @@
+{
+  "files": {
+    "app.py": "def hello():\n    return 'hello'\n",
+    "requirements.txt": "fastapi\nuvicorn\n"
+  }
+}

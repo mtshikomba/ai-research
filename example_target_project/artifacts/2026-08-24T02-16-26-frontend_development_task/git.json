@@ -1,0 +1,10 @@
+{
+  "commit": {
+    "status": "dry_run",
+    "reason": "dry-run mode enabled; no commit performed"
+  },
+  "pr": {
+    "status": "skipped",
+    "reason": "dry-run; PR not created"
+  }
+}

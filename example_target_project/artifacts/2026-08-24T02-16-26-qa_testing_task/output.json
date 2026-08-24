@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "id": "T1",
+      "desc": "Signup with valid email",
+      "steps": [
+        "POST /signup with valid body",
+        "Expect 201"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+Agent role: QA Tester
+Goal: Identify edge cases, write test plans, and validate code against acceptance criteria.
+
+Task: Write a test plan and sample test cases verifying acceptance criteria.
+
+Inputs: {'project_requirement': 'Build a secure user authentication system with email/password and Google OAuth.'}
+
+Current backlog: Current backlog:
+- STORY-1: User can sign up with email
+- STORY-2: User can sign in securely
+
+Current story: STORY-1
+Working branch: feature/story-1-user-can-sign-up-with-email
+
+Please produce structured JSON matching the expected output type.
