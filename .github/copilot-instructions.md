@@ -20,6 +20,18 @@ python src/my_1st_crew/cli.py
 
 This project intentionally validates generated outputs with `jsonschema`; invalid output stops the flow and surfaces a review artifact instead of continuing.
 
+CLI flags (MVP agent)
+
+- --repo-root: Path to the target repository the agent should operate on (defaults to this repo).
+- --dry-run: Simulate actions. No commits, pushes, or PRs will be performed; run is recorded and artifacts are still written.
+- --safe-mode: Allow local commits but never perform automatic pushes or open PRs.
+- --confirm-push: Require interactive confirmation (TTY) before committing/pushing/creating PRs.
+
+Provenance / artifacts
+
+- The agent now writes provenance artifacts into the target repository under `artifacts/` by default. Each task run creates a folder like `artifacts/<iso-timestamp>-<task>/` containing `metadata.json`, `prompt.txt`, `output.json` (or `output.txt`), and `validation.json` (when available). This keeps prompts/outputs and git refs colocated with the code for auditability.
+
+
 ### CrewAI template flow
 
 The repo also includes a generated CrewAI scaffold that matches the default `crewai` project template.

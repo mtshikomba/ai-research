@@ -1,0 +1,15 @@
+{
+  "task": "frontend_development_task",
+  "created_at": "2026-08-24T02:24:09.613874Z",
+  "project_root": "/Users/matheus/dev/my_crew/my_1st_crew/example_target_project",
+  "git": {
+    "commit": {
+      "status": "dry_run",
+      "reason": "dry-run mode enabled; no commit performed"
+    },
+    "pr": {
+      "status": "skipped",
+      "reason": "dry-run; PR not created"
+    }
+  }
+}

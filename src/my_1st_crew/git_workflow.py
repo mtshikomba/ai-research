@@ -13,8 +13,14 @@ class GitWorkflow:
     development environment.
     """
 
-    def __init__(self, project_root: str):
+    def __init__(self, project_root: str, dry_run: bool = False, safe_mode: bool = False, confirm_push: bool = False):
         self.project_root = project_root
+        # dry_run: simulate actions, do not run validations or make commits/pushes
+        self.dry_run = bool(dry_run)
+        # safe_mode: never perform pushes or open PRs automatically
+        self.safe_mode = bool(safe_mode)
+        # confirm_push: when True ask for a confirmation before push/PR (interactive)
+        self.confirm_push = bool(confirm_push)
 
     def ensure_story_branch(self, story: Optional[Dict[str, Any]]) -> Optional[str]:
         repo_root = self._repo_root()
@@ -44,6 +50,10 @@ class GitWorkflow:
         repo_root = self._repo_root()
         if not repo_root:
             return {"status": "skipped", "reason": "git repo not detected"}
+
+        # Dry run: do not run validation or commit
+        if getattr(self, "dry_run", False):
+            return {"status": "dry_run", "reason": "dry-run mode enabled; commit was not performed"}
 
         validation = self.run_validation(validation_command)
         if validation.returncode != 0:
