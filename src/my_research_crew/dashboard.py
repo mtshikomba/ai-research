@@ -46,11 +46,7 @@ def main() -> None:
         st.session_state.run_in_progress = False
 
     st.title("My Research Crew")
-    st.caption("CrewAI research dashboard powered by your local Ollama server")
-
-    with st.sidebar:
-        st.subheader("Ollama server")
-        st.caption(settings.api_base)
+    st.caption("A focused research workspace for your local Ollama models")
 
     try:
         available_models = _load_models(settings.api_base)
@@ -60,28 +56,48 @@ def main() -> None:
         selected_default = ""
         st.error("Could not load Ollama models. Confirm the server is reachable.")
 
+    with st.sidebar:
+        st.subheader(":material/dns: Local Ollama")
+        st.caption(settings.api_base)
+        if st.session_state.run_in_progress:
+            st.warning("Research run in progress")
+        elif available_models:
+            st.success("Ready to research")
+
+    if available_models:
+        summary_left, summary_right = st.columns((2, 1))
+        with summary_left:
+            st.caption(":material/hub: Local research workflow")
+        with summary_right:
+            st.metric("Models online", len(available_models))
+
     if available_models and selected_default != DEFAULT_OLLAMA_MODEL:
         st.info(f"Using available model: {selected_default}")
 
-    with st.form("crew-run-form", clear_on_submit=False):
-        model = st.selectbox(
-            "Model",
-            available_models,
-            index=(
-                available_models.index(selected_default) if available_models else None
-            ),
-            disabled=st.session_state.run_in_progress or not available_models,
-        )
-        topic = st.text_input(
-            "Research topic",
-            placeholder="e.g. practical uses of local LLMs",
-            disabled=st.session_state.run_in_progress or not available_models,
-        )
-        submitted = st.form_submit_button(
-            "Run crew",
-            disabled=st.session_state.run_in_progress or not available_models,
-            type="primary",
-        )
+    with st.container(border=True):
+        st.subheader(":material/tune: Research setup")
+        st.caption("Choose a model and topic, then let the crew prepare a report.")
+        with st.form("crew-run-form", clear_on_submit=False):
+            model = st.selectbox(
+                "Model",
+                available_models,
+                index=(
+                    available_models.index(selected_default)
+                    if available_models
+                    else None
+                ),
+                disabled=st.session_state.run_in_progress or not available_models,
+            )
+            topic = st.text_input(
+                "Research topic",
+                placeholder="e.g. practical uses of local LLMs",
+                disabled=st.session_state.run_in_progress or not available_models,
+            )
+            submitted = st.form_submit_button(
+                "Run research",
+                disabled=st.session_state.run_in_progress or not available_models,
+                type="primary",
+            )
 
     if not submitted:
         return
@@ -95,10 +111,12 @@ def main() -> None:
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
-        st.subheader("Crew result")
-        _display_result(run_result.output)
-        st.caption(f"Model: {model}")
-        st.caption(f"Saved report: {run_result.report_path}")
+        with st.container(border=True):
+            st.subheader(":material/description: Research report")
+            _display_result(run_result.output)
+            st.divider()
+            st.caption(f"Model: {model}")
+            st.caption(f"Saved report: {run_result.report_path}")
     finally:
         st.session_state.run_in_progress = False
 
