@@ -4,7 +4,9 @@ Welcome to the My1StCrew Crew project, powered by [crewAI](https://crewai.com). 
 
 ## Installation
 
-Ensure you have Python >=3.10 <3.13 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+Ensure you have Python >=3.10 <3.13 installed; Python 3.12 is recommended on
+Intel macOS. This project uses [UV](https://docs.astral.sh/uv/) for dependency
+management and package handling.
 
 First, if you haven't already, install uv:
 
@@ -12,15 +14,32 @@ First, if you haven't already, install uv:
 pip install uv
 ```
 
-Next, navigate to your project directory and install the dependencies:
+Next, navigate to the project directory, create the supported environment, and
+install the locked dependencies:
 
-(Optional) Lock the dependencies and install them by using the CLI command:
 ```bash
-crewai install
+uv venv --python 3.12 .venv
+uv sync --system-certs
 ```
+
+`--system-certs` lets UV use the macOS trust store when downloading dependencies.
+
 ### Customizing
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+**Configure your local Ollama server in the `.env` file**
+
+```dotenv
+MODEL=ollama/llama3.1:latest
+API_BASE=http://192.168.1.153:11434
+```
+
+Start Ollama on the configured server and make the model available before
+running the crew. For example:
+
+```bash
+ollama pull llama3.1
+ollama serve
+```
 
 - Modify `src/my_1st_crew/config/agents.yaml` to define your agents
 - Modify `src/my_1st_crew/config/tasks.yaml` to define your tasks
@@ -38,6 +57,18 @@ $ crewai run
 This command initializes the my_1st_crew Crew, assembling the agents and assigning them tasks as defined in your configuration.
 
 This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+
+## Streamlit Dashboard
+
+Install the project dependencies, ensure the configured Ollama server is
+reachable, then launch the dashboard from the repository root:
+
+```bash
+streamlit run src/my_1st_crew/dashboard.py
+```
+
+The dashboard uses `MODEL` and `API_BASE` from `.env` or the environment. Its
+defaults are `ollama/llama3.1:latest` and `http://192.168.1.153:11434`.
 
 ## Reusing this workflow in another repo
 

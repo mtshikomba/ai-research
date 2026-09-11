@@ -1,34 +1,48 @@
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, LLM, Process, Task
 from crewai.project import CrewBase, agent, crew, task
+
+from my_1st_crew.dashboard_service import get_ollama_settings
 
 # If you want to run a snippet of code before or after the crew starts,
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
 
+
 @CrewBase
-class My1StCrew():
+class My1StCrew:
     """My1StCrew crew"""
 
     # Learn more about YAML configuration files here:
     # Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
     # Tasks: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
-    agents_config = 'config/agents.yaml'
-    tasks_config = 'config/tasks.yaml'
+    agents_config = "config/agents.yaml"
+    tasks_config = "config/tasks.yaml"
+
+    def _llm(self) -> LLM:
+        """Create an LLM configured for the local Ollama service.
+
+        Returns:
+            A CrewAI LLM client for the configured local Ollama model.
+        """
+        settings = get_ollama_settings()
+        return LLM(model=settings.model, base_url=settings.api_base)
 
     # If you would like to add tools to your agents, you can learn more about it here:
     # https://docs.crewai.com/concepts/agents#agent-tools
     @agent
     def researcher(self) -> Agent:
         return Agent(
-            config=self.agents_config['researcher'],
-            verbose=True
+            config=self.agents_config["researcher"],
+            verbose=True,
+            llm=self._llm(),
         )
 
     @agent
     def reporting_analyst(self) -> Agent:
         return Agent(
-            config=self.agents_config['reporting_analyst'],
-            verbose=True
+            config=self.agents_config["reporting_analyst"],
+            verbose=True,
+            llm=self._llm(),
         )
 
     # To learn more about structured task outputs,
@@ -37,26 +51,24 @@ class My1StCrew():
     @task
     def research_task(self) -> Task:
         return Task(
-            config=self.tasks_config['research_task'],
+            config=self.tasks_config["research_task"],
         )
 
     @task
     def reporting_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['reporting_task'],
-            output_file='report.md'
-        )
+        return Task(config=self.tasks_config["reporting_task"], output_file="report.md")
 
     @crew
     def crew(self) -> Crew:
         """Creates the My1StCrew crew"""
-        # To learn how to add knowledge sources to your crew, check out the documentation:
+        # To learn how to add knowledge sources, see the documentation:
         # https://docs.crewai.com/concepts/knowledge#what-is-knowledge
 
         return Crew(
-            agents=self.agents, # Automatically created by the @agent decorator
-            tasks=self.tasks, # Automatically created by the @task decorator
+            agents=self.agents,  # Automatically created by the @agent decorator
+            tasks=self.tasks,  # Automatically created by the @task decorator
             process=Process.sequential,
             verbose=True,
-            # process=Process.hierarchical, # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
+            # process=Process.hierarchical,
+            # See https://docs.crewai.com/how-to/Hierarchical/ for this option.
         )
