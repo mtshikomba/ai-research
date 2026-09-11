@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import os
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+from my_research_crew.report_storage import create_report_path
 
 DEFAULT_OLLAMA_MODEL = "ollama/llama3.1:latest"
 DEFAULT_OLLAMA_API_BASE = "http://192.168.1.153:11434"
@@ -26,6 +29,19 @@ class OllamaSettings:
     api_base: str
 
 
+@dataclass(frozen=True)
+class CrewRunResult:
+    """Output and saved report location for one completed crew run.
+
+    Attributes:
+        output: Value returned by CrewAI kickoff.
+        report_path: Final report path reserved for the run.
+    """
+
+    output: Any
+    report_path: Path
+
+
 def get_ollama_settings() -> OllamaSettings:
     """Load Ollama settings from the environment with local-network defaults.
 
@@ -39,15 +55,15 @@ def get_ollama_settings() -> OllamaSettings:
     )
 
 
-def _create_crew() -> Any:
+def _create_crew(report_path: Path) -> Any:
     """Create the existing configured CrewAI crew on demand.
 
     Returns:
         The configured CrewAI crew instance.
     """
-    from my_1st_crew.crew import My1StCrew
+    from my_research_crew.crew import MyResearchCrew
 
-    return My1StCrew().crew()
+    return MyResearchCrew(report_path=report_path).crew()
 
 
 def get_safe_error_message(error: Exception) -> str:
@@ -78,14 +94,14 @@ def get_safe_error_message(error: Exception) -> str:
     )
 
 
-def run_crew(topic: str) -> Any:
+def run_crew(topic: str) -> CrewRunResult:
     """Run the configured CrewAI crew for a dashboard topic.
 
     Args:
         topic: Research topic supplied by the dashboard user.
 
     Returns:
-        The output returned by the CrewAI kickoff.
+        The CrewAI output and path of its saved report.
 
     Raises:
         ValueError: If the supplied topic is empty.
@@ -99,10 +115,12 @@ def run_crew(topic: str) -> Any:
     settings = get_ollama_settings()
     os.environ["MODEL"] = settings.model
     os.environ["API_BASE"] = settings.api_base
+    report_path = create_report_path(normalized_topic)
 
-    return _create_crew().kickoff(
+    output = _create_crew(report_path).kickoff(
         inputs={
             "topic": normalized_topic,
             "current_year": str(datetime.now().year),
         }
     )
+    return CrewRunResult(output=output, report_path=report_path)

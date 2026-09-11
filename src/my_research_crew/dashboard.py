@@ -9,7 +9,7 @@ from typing import Any
 
 import streamlit as st
 
-from my_1st_crew.dashboard_service import (
+from my_research_crew.dashboard_service import (
     get_ollama_settings,
     get_safe_error_message,
     run_crew,
@@ -28,13 +28,13 @@ def _display_result(result: Any) -> None:
 
 def main() -> None:
     """Render and run the Streamlit CrewAI dashboard."""
-    st.set_page_config(page_title="My1StCrew", page_icon="M", layout="wide")
+    st.set_page_config(page_title="My Research Crew", page_icon="M", layout="wide")
     settings = get_ollama_settings()
 
     if "run_in_progress" not in st.session_state:
         st.session_state.run_in_progress = False
 
-    st.title("My1StCrew")
+    st.title("My Research Crew")
     st.caption("CrewAI research dashboard powered by your local Ollama server")
 
     with st.sidebar:
@@ -60,14 +60,15 @@ def main() -> None:
     st.session_state.run_in_progress = True
     try:
         with st.spinner("Running the CrewAI workflow..."):
-            result = run_crew(topic)
+            run_result = run_crew(topic)
     except ValueError as error:
         st.warning(str(error))
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
         st.subheader("Crew result")
-        _display_result(result)
+        _display_result(run_result.output)
+        st.caption(f"Saved report: {run_result.report_path}")
     finally:
         st.session_state.run_in_progress = False
 

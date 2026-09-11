@@ -1,6 +1,6 @@
-# My1StCrew Crew
+# My Research Crew
 
-Welcome to the My1StCrew Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+Welcome to the My Research Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
 
 ## Installation
 
@@ -41,10 +41,10 @@ ollama pull llama3.1
 ollama serve
 ```
 
-- Modify `src/my_1st_crew/config/agents.yaml` to define your agents
-- Modify `src/my_1st_crew/config/tasks.yaml` to define your tasks
-- Modify `src/my_1st_crew/crew.py` to add your own logic, tools and specific args
-- Modify `src/my_1st_crew/main.py` to add custom inputs for your agents and tasks
+- Modify `src/my_research_crew/config/agents.yaml` to define your agents
+- Modify `src/my_research_crew/config/tasks.yaml` to define your tasks
+- Modify `src/my_research_crew/crew.py` to add your own logic, tools and specific args
+- Modify `src/my_research_crew/main.py` to add custom inputs for your agents and tasks
 
 ## Running the Project
 
@@ -54,9 +54,10 @@ To kickstart your crew of AI agents and begin task execution, run this from the 
 $ crewai run
 ```
 
-This command initializes the my_1st_crew Crew, assembling the agents and assigning them tasks as defined in your configuration.
+This command initializes the my_research_crew Crew, assembling the agents and assigning them tasks as defined in your configuration.
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+Each research run saves its `report.md` beneath a unique
+`reports/<timestamp>-<topic>/` directory. The `reports/` directory is ignored by Git.
 
 ## Streamlit Dashboard
 
@@ -64,7 +65,7 @@ Install the project dependencies, ensure the configured Ollama server is
 reachable, then launch the dashboard from the repository root:
 
 ```bash
-streamlit run src/my_1st_crew/dashboard.py
+streamlit run src/my_research_crew/dashboard.py
 ```
 
 The dashboard uses `MODEL` and `API_BASE` from `.env` or the environment. Its
@@ -72,15 +73,15 @@ defaults are `ollama/llama3.1:latest` and `http://192.168.1.153:11434`.
 
 ## Reusing this workflow in another repo
 
-The project now includes a generic `ProjectContext` discovery layer in `src/my_1st_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
+The project now includes a generic `ProjectContext` discovery layer in `src/my_research_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
 
 ## Understanding Your Crew
 
-The my_1st_crew Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+The my_research_crew Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
 
 ## Support
 
-For support, questions, or feedback regarding the My1StCrew Crew or crewAI.
+For support, questions, or feedback regarding the My Research Crew or crewAI.
 - Visit our [documentation](https://docs.crewai.com)
 - Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
 - [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
