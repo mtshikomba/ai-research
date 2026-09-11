@@ -21,13 +21,17 @@ class MyResearchCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
-    def __init__(self, report_path: Path | None = None) -> None:
+    def __init__(
+        self, report_path: Path | None = None, model: str | None = None
+    ) -> None:
         """Initialize the crew with an optional run-specific report path.
 
         Args:
             report_path: Destination for the reporting task output.
+            model: Ollama model selected for this crew run.
         """
         self.report_path = report_path
+        self.model = model
 
     def _llm(self) -> LLM:
         """Create an LLM configured for the local Ollama service.
@@ -36,7 +40,10 @@ class MyResearchCrew:
             A CrewAI LLM client for the configured local Ollama model.
         """
         settings = get_ollama_settings()
-        return LLM(model=settings.model, base_url=settings.api_base)
+        model = self.model or settings.model
+        if not model.startswith("ollama/"):
+            model = f"ollama/{model}"
+        return LLM(model=model, base_url=settings.api_base)
 
     # If you would like to add tools to your agents, you can learn more about it here:
     # https://docs.crewai.com/concepts/agents#agent-tools
