@@ -68,8 +68,10 @@ reachable, then launch the dashboard from the repository root:
 streamlit run src/my_research_crew/dashboard.py
 ```
 
-The dashboard uses `MODEL` and `API_BASE` from `.env` or the environment. Its
-defaults are `ollama/llama3.1:latest` and `http://192.168.1.153:11434`.
+The dashboard loads available models from the configured Ollama server. It
+prefers `gpt-oss:120b-cloud` when available; otherwise it uses `MODEL` from
+`.env` or the environment. The default endpoint is
+`http://192.168.1.153:11434`.
 
 ## Reusing this workflow in another repo
 
