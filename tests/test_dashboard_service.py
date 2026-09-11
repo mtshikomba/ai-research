@@ -12,13 +12,16 @@ from my_research_crew.dashboard_service import (
     DEFAULT_OLLAMA_API_BASE,
     DEFAULT_OLLAMA_MODEL,
     CrewRunResult,
+    ExecutiveRunResult,
     OllamaSettings,
     get_safe_error_message,
     get_ollama_settings,
     list_ollama_models,
     run_crew,
+    run_executive_crew,
     select_ollama_model,
 )
+from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 from my_research_crew.report_storage import (
     PROJECT_ROOT,
     create_report_path,
@@ -101,6 +104,50 @@ class DashboardServiceTests(unittest.TestCase):
                 run_crew("local AI", "gpt-oss:120b-cloud")
                 self.assertEqual(os.environ["MODEL"], "llama3.1:latest")
                 self.assertEqual(os.environ["API_BASE"], "http://ollama.test")
+
+    def test_run_executive_crew_passes_context_and_model(self) -> None:
+        """The executive runner delegates the selected model and safe context."""
+        kickoff = MagicMock(return_value="executive output")
+        crew = MagicMock()
+        crew.kickoff = kickoff
+
+        with TemporaryDirectory() as temporary_directory:
+            report_path = Path(temporary_directory) / "report.md"
+            with (
+                patch(
+                    "my_research_crew.dashboard_service.create_report_path",
+                    return_value=report_path,
+                ),
+                patch(
+                    "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew",
+                ) as executive_crew,
+            ):
+                executive_crew.return_value.crew.return_value = crew
+                result = run_executive_crew(
+                    "Should we expand?",
+                    "Cash reserves are constrained.",
+                    "llama3.1:latest",
+                )
+
+        self.assertEqual(result, ExecutiveRunResult("executive output", report_path))
+        executive_crew.assert_called_once_with(
+            report_path=report_path, model="llama3.1:latest"
+        )
+        self.assertEqual(
+            kickoff.call_args.kwargs["inputs"]["executive_question"],
+            "Should we expand?",
+        )
+
+    def test_peshiko_crew_has_ceo_context_for_specialist_tasks(self) -> None:
+        """The CEO brief consumes the CFO, COO, and CIO task assessments."""
+        crew = PeshikoInvestmentsCrew(model="llama3.1:latest")
+        brief = crew.ceo_brief()
+
+        self.assertEqual(len(brief.context), 3)
+        self.assertEqual(
+            brief.agent.role.strip(),
+            "Peshiko Investments Group Chief Executive Officer",
+        )
 
     def test_crew_normalizes_selected_ollama_model(self) -> None:
         """Raw Ollama model names become LiteLLM-compatible CrewAI identifiers."""
@@ -209,6 +256,22 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(
             app.warning[0].value, "Enter a topic before starting the crew."
         )
+
+    def test_dashboard_shows_peshiko_executive_workspace(self) -> None:
+        """The executive workspace exposes labeled Peshiko briefing inputs."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud", "llama3.1:latest"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[0].set_value("Executive briefing").run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.title[0].value, "Peshiko Investments Group")
+        self.assertEqual(app.text_area[0].label, "Executive question")
+        self.assertEqual(app.text_area[1].label, "Business context (optional)")
+        self.assertEqual(app.button[0].label, "Prepare executive brief")
 
     def test_dashboard_disables_run_when_models_are_unavailable(self) -> None:
         """The dashboard prevents execution when Ollama model inventory fails."""
