@@ -1,0 +1,44 @@
+cfo_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Provide financial considerations, risks, assumptions, and practical next
+    steps. Do not initiate transactions or represent advice as accounting fact.
+  expected_output: >
+    A concise CFO assessment with financial considerations, risks, assumptions,
+    and recommended next steps.
+  agent: cfo
+
+coo_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Provide operational considerations, risks, assumptions, and practical next
+    steps. Do not initiate operational changes.
+  expected_output: >
+    A concise COO assessment with operational considerations, risks,
+    assumptions, and recommended next steps.
+  agent: coo
+
+cio_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Provide data and information considerations, risks, assumptions, and
+    practical next steps. Do not access external systems.
+  expected_output: >
+    A concise CIO assessment with data, information, and technology
+    considerations, risks, assumptions, and recommended next steps.
+  agent: cio
+
+ceo_brief:
+  description: >
+    Using the CFO, COO, and CIO assessments, produce an executive brief for
+    Peshiko Investments Group on: {executive_question}
+    Lead with a recommendation and next steps. Then distinguish financial,
+    operational, data/information, strategic, risk, and assumptions sections.
+    Treat the brief as advisory; do not direct transactions or autonomous action.
+  expected_output: >
+    A markdown executive brief led by CEO recommendation and next steps, with
+    clearly labeled CFO, COO, CIO, strategic, risk, and assumptions sections.
+  agent: ceo

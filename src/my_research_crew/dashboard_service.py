@@ -45,6 +45,14 @@ class CrewRunResult:
     report_path: Path
 
 
+@dataclass(frozen=True)
+class ExecutiveRunResult:
+    """Output and saved report location for one executive crew run."""
+
+    output: Any
+    report_path: Path
+
+
 class OllamaModelInventoryError(Exception):
     """Raised when an Ollama model inventory cannot be loaded safely."""
 
@@ -191,3 +199,43 @@ def run_crew(topic: str, model: str) -> CrewRunResult:
         }
     )
     return CrewRunResult(output=output, report_path=report_path)
+
+
+def run_executive_crew(
+    executive_question: str, business_context: str, model: str
+) -> ExecutiveRunResult:
+    """Run a CEO-led Peshiko executive briefing.
+
+    Args:
+        executive_question: Business decision or question for the executive crew.
+        business_context: Optional non-sensitive context supplied by the user.
+        model: Ollama model selected for this run.
+
+    Returns:
+        The executive brief and its saved report path.
+
+    Raises:
+        ValueError: If the question or model is empty.
+    """
+    question = executive_question.strip()
+    selected_model = model.strip()
+    if not question:
+        raise ValueError("Enter an executive question before starting the briefing.")
+    if not selected_model:
+        raise ValueError("Select an Ollama model before starting the briefing.")
+
+    report_path = create_report_path(f"peshiko-executive-{question}")
+    from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
+
+    output = (
+        PeshikoInvestmentsCrew(report_path=report_path, model=selected_model)
+        .crew()
+        .kickoff(
+            inputs={
+                "executive_question": question,
+                "business_context": business_context.strip()
+                or "No additional context provided.",
+            }
+        )
+    )
+    return ExecutiveRunResult(output=output, report_path=report_path)

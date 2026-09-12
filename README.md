@@ -73,6 +73,14 @@ prefers `gpt-oss:120b-cloud` when available; otherwise it uses `MODEL` from
 `.env` or the environment. The default endpoint is
 `http://192.168.1.153:11434`.
 
+## Peshiko Executive Briefing
+
+Select `Executive briefing` in the dashboard to ask Peshiko Investments Group's
+executive crew a business question. The CFO, COO, and CIO provide specialist
+assessments before the CEO produces the final advisory brief. Supply only
+non-sensitive business context; the crew does not access company systems or
+initiate transactions.
+
 ## Reusing this workflow in another repo
 
 The project now includes a generic `ProjectContext` discovery layer in `src/my_research_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
