@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 from crewai import Agent, Crew, LLM, Process, Task
@@ -29,6 +30,40 @@ class PeshikoInvestmentsCrew:
         """
         self.report_path = report_path
         self.model = model
+
+    @staticmethod
+    def _local_knowledge_summary(project_root: Path | None = None) -> str:
+        """Prepare and summarize local Peshiko knowledge before any web fallback."""
+        root = project_root or Path(__file__).resolve().parents[2]
+        knowledge_dir = root / "knowledge" / "peshiko"
+        if not knowledge_dir.exists():
+            return (
+                "No local Peshiko knowledge directory found at knowledge/peshiko; "
+                "internet research may be used as a fallback."
+            )
+
+        summary_lines = [
+            "Local Peshiko knowledge is available under knowledge/peshiko.",
+            f"Primary source directory: {knowledge_dir}",
+        ]
+
+        archive_paths = sorted(knowledge_dir.rglob("*.zip"))
+        for archive_path in archive_paths:
+            extracted_dir = archive_path.with_suffix("")
+            extracted_dir.parent.mkdir(parents=True, exist_ok=True)
+            if not extracted_dir.exists():
+                with zipfile.ZipFile(archive_path, "r") as archive:
+                    archive.extractall(extracted_dir)
+            summary_lines.append(
+                f"Archive extracted for use: {archive_path.relative_to(root)} -> {extracted_dir.relative_to(root)}"
+            )
+
+        if not archive_paths:
+            summary_lines.append(
+                "No local zip archives were found; use the existing local files in knowledge/peshiko."
+            )
+
+        return "\n".join(summary_lines)
 
     def _llm(self) -> LLM:
         """Create the run-specific Ollama LLM client."""

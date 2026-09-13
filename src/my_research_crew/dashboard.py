@@ -77,6 +77,9 @@ def _render_executive_workspace(
     with st.container(border=True):
         st.subheader(":material/account_balance: Executive briefing")
         st.caption("Prepare CFO, COO, and CIO assessments for CEO synthesis.")
+        st.info(
+            "Source order: local Peshiko knowledge first. Extract any zipped business or historical archives in knowledge/peshiko before using internet research as a fallback."
+        )
         with st.form("executive-run-form", clear_on_submit=False):
             model = _model_selector(available_models, selected_default, "executive")
             question = st.text_area(

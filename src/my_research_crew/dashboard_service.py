@@ -227,14 +227,21 @@ def run_executive_crew(
     report_path = create_report_path(f"peshiko-executive-{question}")
     from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 
+    local_knowledge_summary = PeshikoInvestmentsCrew._local_knowledge_summary()
+    effective_context = business_context.strip() or "No additional context provided."
+    if local_knowledge_summary:
+        effective_context = (
+            f"{local_knowledge_summary}\n\n{effective_context}"
+        )
+
     output = (
         PeshikoInvestmentsCrew(report_path=report_path, model=selected_model)
         .crew()
         .kickoff(
             inputs={
                 "executive_question": question,
-                "business_context": business_context.strip()
-                or "No additional context provided.",
+                "business_context": effective_context,
+                "local_knowledge_summary": local_knowledge_summary,
             }
         )
     )
