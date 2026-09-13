@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
 import unittest
+import zipfile
 from unittest.mock import MagicMock, patch
 
 from streamlit.testing.v1 import AppTest
@@ -148,6 +149,30 @@ class DashboardServiceTests(unittest.TestCase):
             brief.agent.role.strip(),
             "Peshiko Investments Group Chief Executive Officer",
         )
+
+    def test_peshiko_crew_prioritizes_local_knowledge_before_internet(self) -> None:
+        """The Peshiko crew is explicitly local-first and only falls back to internet research when needed."""
+        crew = PeshikoInvestmentsCrew(model="llama3.1:latest")
+
+        self.assertIn("knowledge/peshiko", crew.cfo_assessment().description)
+        self.assertIn("only use internet research", crew.cfo_assessment().description)
+        self.assertIn("knowledge/peshiko", crew.ceo_brief().description)
+
+    def test_peshiko_crew_extracts_local_archives_before_fallback(self) -> None:
+        """Local zip archives under knowledge/peshiko are extracted and summarized before research fallback."""
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            knowledge_dir = project_root / "knowledge" / "peshiko" / "business-data"
+            knowledge_dir.mkdir(parents=True)
+            archive_path = knowledge_dir / "historical-pack.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("notes.txt", "Historical operating context")
+
+            summary = PeshikoInvestmentsCrew._local_knowledge_summary(project_root)
+
+            self.assertIn("knowledge/peshiko", summary)
+            self.assertIn("historical-pack.zip", summary)
+            self.assertTrue((knowledge_dir / "historical-pack" / "notes.txt").exists())
 
     def test_crew_normalizes_selected_ollama_model(self) -> None:
         """Raw Ollama model names become LiteLLM-compatible CrewAI identifiers."""

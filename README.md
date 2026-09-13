@@ -81,6 +81,18 @@ assessments before the CEO produces the final advisory brief. Supply only
 non-sensitive business context; the crew does not access company systems or
 initiate transactions.
 
+For local-only company materials, keep the investment dossier under
+`knowledge/peshiko/` with subfolders for business data, historical documents,
+report templates, and brand assets. The Peshiko crew should always check this
+local store first, including any archived business or historical data that has
+been extracted into the folder. Internet research is only a fallback when the
+local `knowledge/peshiko/` materials do not contain the relevant facts,
+archives, or templates needed for the task. The CEO should apply the local
+`knowledge/peshiko/letterhead/` branding and the matching template from
+`knowledge/peshiko/report-templates/` when preparing a PDF executive report.
+The entire `knowledge/` tree is intentionally ignored by Git and should never be
+committed.
+
 ## Reusing this workflow in another repo
 
 The project now includes a generic `ProjectContext` discovery layer in `src/my_research_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
