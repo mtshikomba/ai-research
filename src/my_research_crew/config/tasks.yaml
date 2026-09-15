@@ -3,6 +3,10 @@ research_task:
     Conduct a thorough research about {topic}
     Make sure you find any interesting and relevant information given
     the current year is {current_year}.
+    Selected research source: {research_source}.
+    Source context: {source_context}
+    Use only the selected source. Do not combine internet research with local
+    knowledge in the same run.
   expected_output: >
     A list with 10 bullet points of the most relevant information about {topic}
   agent: researcher
@@ -11,6 +15,8 @@ reporting_task:
   description: >
     Review the context you got and expand each topic into a full section for a report.
     Make sure the report is detailed and contains any and all relevant information.
+    State that the report source is {research_source} without exposing private
+    local file contents as metadata.
   expected_output: >
     A fully fledged report with the main topics, each with a full section of information.
     Formatted as markdown without '```'

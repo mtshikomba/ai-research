@@ -29,6 +29,7 @@ from my_research_crew.report_storage import (
     report_output_file,
 )
 from my_research_crew.crew import MyResearchCrew
+from my_research_crew.research_sources import LocalKnowledgeError, ResearchSource
 
 
 class DashboardServiceTests(unittest.TestCase):
@@ -71,14 +72,76 @@ class DashboardServiceTests(unittest.TestCase):
                     return_value=crew,
                 ) as create_crew,
             ):
-                result = run_crew("  local AI  ", "gpt-oss:120b-cloud")
+                result = run_crew(
+                    "  local AI  ",
+                    "gpt-oss:120b-cloud",
+                    ResearchSource.INTERNET,
+                )
 
-        self.assertEqual(result, CrewRunResult("crew output", report_path))
-        create_crew.assert_called_once_with(report_path, "gpt-oss:120b-cloud")
+        self.assertEqual(
+            result,
+            CrewRunResult("crew output", report_path, ResearchSource.INTERNET.label),
+        )
+        create_crew.assert_called_once_with(
+            report_path,
+            "gpt-oss:120b-cloud",
+            ResearchSource.INTERNET,
+            "Internet research enabled. Local knowledge files were not read.",
+        )
         kickoff.assert_called_once()
         inputs = kickoff.call_args.kwargs["inputs"]
         self.assertEqual(inputs["topic"], "local AI")
+        self.assertEqual(inputs["research_source"], "Internet")
         self.assertTrue(inputs["current_year"].isdigit())
+
+    def test_run_crew_prepares_local_knowledge_without_internet_fallback(self) -> None:
+        """Local mode passes local context and never constructs internet mode."""
+        crew = MagicMock()
+        crew.kickoff.return_value = "local output"
+
+        with TemporaryDirectory() as temporary_directory:
+            report_path = Path(temporary_directory) / "report.md"
+            with (
+                patch(
+                    "my_research_crew.dashboard_service.create_report_path",
+                    return_value=report_path,
+                ),
+                patch(
+                    "my_research_crew.dashboard_service.prepare_local_knowledge"
+                ) as prepare,
+                patch(
+                    "my_research_crew.dashboard_service._create_crew",
+                    return_value=crew,
+                ) as create_crew,
+            ):
+                prepare.return_value.context = "Private local evidence"
+                result = run_crew(
+                    "quarterly performance",
+                    "gpt-oss:120b-cloud",
+                    ResearchSource.LOCAL,
+                )
+
+        self.assertEqual(result.source, "Local knowledge")
+        create_crew.assert_called_once_with(
+            report_path,
+            "gpt-oss:120b-cloud",
+            ResearchSource.LOCAL,
+            "Private local evidence",
+        )
+
+    def test_run_crew_does_not_fallback_when_local_knowledge_is_empty(self) -> None:
+        """A local preparation failure stops execution before crew creation."""
+        with (
+            patch(
+                "my_research_crew.dashboard_service.prepare_local_knowledge",
+                side_effect=LocalKnowledgeError("No usable local knowledge files."),
+            ),
+            patch("my_research_crew.dashboard_service._create_crew") as create_crew,
+        ):
+            with self.assertRaisesRegex(LocalKnowledgeError, "No usable"):
+                run_crew("topic", "model", ResearchSource.LOCAL)
+
+        create_crew.assert_not_called()
 
     def test_run_crew_does_not_mutate_environment_model_settings(self) -> None:
         """A dashboard selection stays scoped to its run rather than `.env`."""
@@ -185,6 +248,14 @@ class DashboardServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Enter a topic"):
             run_crew("   ", "gpt-oss:120b-cloud")
 
+    def test_run_crew_rejects_an_unknown_research_source(self) -> None:
+        """The service validates source values before crew construction."""
+        with patch("my_research_crew.dashboard_service._create_crew") as create_crew:
+            with self.assertRaisesRegex(ValueError, "research source"):
+                run_crew("local AI", "gpt-oss:120b-cloud", "combined")
+
+        create_crew.assert_not_called()
+
     def test_select_ollama_model_prefers_requested_default(self) -> None:
         """The requested default wins when it is available from Ollama."""
         selected = select_ollama_model(
@@ -269,6 +340,8 @@ class DashboardServiceTests(unittest.TestCase):
 
         self.assertFalse(app.exception)
         self.assertEqual(app.title[0].value, "My Research Crew")
+        self.assertEqual(app.segmented_control[1].label, "Research source")
+        self.assertEqual(app.segmented_control[1].value, "Internet")
         self.assertEqual(app.selectbox[0].value, "gpt-oss:120b-cloud")
 
         with patch(
@@ -297,6 +370,39 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(app.text_area[0].label, "Executive question")
         self.assertEqual(app.text_area[1].label, "Business context (optional)")
         self.assertEqual(app.button[0].label, "Prepare executive brief")
+
+    def test_dashboard_explains_local_research_mode(self) -> None:
+        """Local mode identifies its isolation and remains selected on rerun."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[1].set_value("Local knowledge").run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.segmented_control[1].value, "Local knowledge")
+        self.assertIn("will not access the internet", app.success[0].value)
+
+    def test_dashboard_locks_research_controls_during_a_run(self) -> None:
+        """The selected source and form controls remain visible but disabled."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30)
+            app.session_state["run_in_progress"] = True
+            app.session_state["research-source"] = "Local knowledge"
+            app.run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.segmented_control[1].value, "Local knowledge")
+        self.assertTrue(app.segmented_control[1].disabled)
+        self.assertTrue(app.selectbox[0].disabled)
+        self.assertTrue(app.text_input[0].disabled)
+        self.assertTrue(app.button[0].disabled)
 
     def test_dashboard_disables_run_when_models_are_unavailable(self) -> None:
         """The dashboard prevents execution when Ollama model inventory fails."""
