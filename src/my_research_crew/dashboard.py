@@ -31,6 +31,11 @@ from my_research_crew.research_sources import (
     ResearchSource,
     inspect_local_knowledge,
 )
+from my_research_crew.report_exports import (
+    markdown_download,
+    pdf_download,
+    report_download_filename,
+)
 
 
 def _display_result(result: Any) -> None:
@@ -47,6 +52,81 @@ def _display_result(result: Any) -> None:
 def _load_models(api_base: str) -> list[str]:
     """Load available models with a short cache for dashboard reruns."""
     return list_ollama_models(OllamaSettings(model="", api_base=api_base))
+
+
+def _render_report_downloads(report_path: Path) -> None:
+    """Render Markdown download and on-demand PDF generation for a report."""
+    try:
+        markdown_bytes = markdown_download(report_path)
+        markdown_filename = report_download_filename(report_path, ".md")
+        pdf_filename = report_download_filename(report_path, ".pdf")
+    except ValueError as error:
+        st.error(str(error))
+        return
+
+    markdown_column, pdf_column = st.columns(2)
+    with markdown_column:
+        st.download_button(
+            "Download Markdown",
+            data=markdown_bytes,
+            file_name=markdown_filename,
+            mime="text/markdown",
+            icon=":material/download:",
+            width="stretch",
+        )
+
+    pdf_state_key = f"pdf-download:{report_path}"
+    with pdf_column:
+        if st.button(
+            "Generate PDF",
+            key=f"generate-pdf:{report_path}",
+            icon=":material/picture_as_pdf:",
+            width="stretch",
+        ):
+            try:
+                st.session_state[pdf_state_key] = pdf_download(report_path)
+            except ValueError as error:
+                st.session_state.pop(pdf_state_key, None)
+                st.error(str(error))
+            except Exception:
+                st.session_state.pop(pdf_state_key, None)
+                st.error("The PDF could not be generated. Markdown remains available.")
+
+        pdf_bytes = st.session_state.get(pdf_state_key)
+        if pdf_bytes:
+            st.download_button(
+                "Download PDF",
+                data=pdf_bytes,
+                file_name=pdf_filename,
+                mime="application/pdf",
+                icon=":material/download:",
+                width="stretch",
+                key=f"download-pdf:{report_path}",
+            )
+
+
+def _render_research_result(run_result: Any, model: str | None) -> None:
+    """Render a completed Research result from the current session state."""
+    with st.container(border=True):
+        st.subheader(":material/description: Research report")
+        _display_result(run_result.output)
+        _render_report_downloads(run_result.report_path)
+        st.divider()
+        st.caption(f"Model: {model}")
+        st.caption(f"Research source: {run_result.source}")
+        st.caption(f"Saved report: {run_result.report_path}")
+
+
+def _render_executive_result(run_result: Any, model: str | None) -> None:
+    """Render a completed Executive briefing result from session state."""
+    with st.container(border=True):
+        st.subheader(":material/account_balance: CEO executive brief")
+        _display_result(run_result.output)
+        _render_report_downloads(run_result.report_path)
+        st.divider()
+        st.caption(f"Model: {model}")
+        st.caption(f"Research source: {run_result.source}")
+        st.caption(f"Saved report: {run_result.report_path}")
 
 
 def _render_research_workspace(
@@ -133,7 +213,13 @@ def _render_research_workspace(
             )
 
     if submitted:
+        st.session_state.pop("last_research_result", None)
         _run_research(topic, model, source, knowledge_dir)
+    if st.session_state.get("last_research_result"):
+        _render_research_result(
+            st.session_state["last_research_result"],
+            st.session_state.get("last_research_model"),
+        )
 
 
 def _render_executive_workspace(
@@ -230,7 +316,13 @@ def _render_executive_workspace(
             )
 
     if submitted:
+        st.session_state.pop("last_executive_result", None)
         _run_executive_brief(question, context, model, source, knowledge_dir)
+    if st.session_state.get("last_executive_result"):
+        _render_executive_result(
+            st.session_state["last_executive_result"],
+            st.session_state.get("last_executive_model"),
+        )
 
 
 def _render_model_summary(available_models: list[str], workflow_name: str) -> None:
@@ -278,13 +370,8 @@ def _run_research(
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
-        with st.container(border=True):
-            st.subheader(":material/description: Research report")
-            _display_result(run_result.output)
-            st.divider()
-            st.caption(f"Model: {model}")
-            st.caption(f"Research source: {run_result.source}")
-            st.caption(f"Saved report: {run_result.report_path}")
+        st.session_state["last_research_result"] = run_result
+        st.session_state["last_research_model"] = model
     finally:
         st.session_state.run_in_progress = False
 
@@ -314,13 +401,8 @@ def _run_executive_brief(
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
-        with st.container(border=True):
-            st.subheader(":material/account_balance: CEO executive brief")
-            _display_result(run_result.output)
-            st.divider()
-            st.caption(f"Model: {model}")
-            st.caption(f"Research source: {run_result.source}")
-            st.caption(f"Saved report: {run_result.report_path}")
+        st.session_state["last_executive_result"] = run_result
+        st.session_state["last_executive_model"] = model
     finally:
         st.session_state.run_in_progress = False
 
