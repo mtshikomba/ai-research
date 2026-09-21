@@ -54,10 +54,11 @@ class CrewRunResult:
 
 @dataclass(frozen=True)
 class ExecutiveRunResult:
-    """Output and saved report location for one executive crew run."""
+    """Output, saved report location, and evidence source for one executive crew run."""
 
     output: Any
     report_path: Path
+    source: str = ResearchSource.LOCAL.label
 
 
 class OllamaModelInventoryError(Exception):
@@ -242,7 +243,10 @@ def run_crew(
 
 
 def run_executive_crew(
-    executive_question: str, business_context: str, model: str
+    executive_question: str,
+    business_context: str,
+    model: str,
+    source: ResearchSource | str = ResearchSource.LOCAL,
 ) -> ExecutiveRunResult:
     """Run a CEO-led Peshiko executive briefing.
 
@@ -250,15 +254,18 @@ def run_executive_crew(
         executive_question: Business decision or question for the executive crew.
         business_context: Optional non-sensitive context supplied by the user.
         model: Ollama model selected for this run.
+        source: Evidence source selected for the briefing, either Internet or
+            Local knowledge.
 
     Returns:
         The executive brief and its saved report path.
 
     Raises:
-        ValueError: If the question or model is empty.
+        ValueError: If the question, model, or selected source is invalid.
     """
     question = executive_question.strip()
     selected_model = model.strip()
+    selected_source = ResearchSource.parse(source)
     if not question:
         raise ValueError("Enter an executive question before starting the briefing.")
     if not selected_model:
@@ -267,8 +274,25 @@ def run_executive_crew(
     report_path = create_report_path(f"peshiko-executive-{question}")
     from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 
-    local_knowledge_summary = PeshikoInvestmentsCrew._local_knowledge_summary()
+    if selected_source is ResearchSource.LOCAL:
+        local_knowledge_summary = PeshikoInvestmentsCrew._local_knowledge_summary()
+        if not isinstance(local_knowledge_summary, str):
+            local_knowledge_summary = (
+                "Local Peshiko knowledge is available under knowledge/peshiko."
+            )
+        source_context = "Local Peshiko knowledge was used as the primary source."
+    else:
+        local_knowledge_summary = (
+            "Internet research was selected; local Peshiko knowledge was not used "
+            "for this run."
+        )
+        source_context = (
+            "Internet research was selected for this briefing; local knowledge "
+            "was not consulted."
+        )
+
     effective_context = business_context.strip() or "No additional context provided."
+    effective_context = f"{source_context}\n\n{effective_context}"
     if local_knowledge_summary:
         effective_context = f"{local_knowledge_summary}\n\n{effective_context}"
 
@@ -280,7 +304,12 @@ def run_executive_crew(
                 "executive_question": question,
                 "business_context": effective_context,
                 "local_knowledge_summary": local_knowledge_summary,
+                "research_source": selected_source.label,
             }
         )
     )
-    return ExecutiveRunResult(output=output, report_path=report_path)
+    return ExecutiveRunResult(
+        output=output,
+        report_path=report_path,
+        source=selected_source.label,
+    )
