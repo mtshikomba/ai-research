@@ -105,6 +105,30 @@ def _render_report_downloads(report_path: Path) -> None:
             )
 
 
+def _render_research_result(run_result: Any, model: str | None) -> None:
+    """Render a completed Research result from the current session state."""
+    with st.container(border=True):
+        st.subheader(":material/description: Research report")
+        _display_result(run_result.output)
+        _render_report_downloads(run_result.report_path)
+        st.divider()
+        st.caption(f"Model: {model}")
+        st.caption(f"Research source: {run_result.source}")
+        st.caption(f"Saved report: {run_result.report_path}")
+
+
+def _render_executive_result(run_result: Any, model: str | None) -> None:
+    """Render a completed Executive briefing result from session state."""
+    with st.container(border=True):
+        st.subheader(":material/account_balance: CEO executive brief")
+        _display_result(run_result.output)
+        _render_report_downloads(run_result.report_path)
+        st.divider()
+        st.caption(f"Model: {model}")
+        st.caption(f"Research source: {run_result.source}")
+        st.caption(f"Saved report: {run_result.report_path}")
+
+
 def _render_research_workspace(
     available_models: list[str], selected_default: str, knowledge_dir: Path
 ) -> None:
@@ -189,7 +213,13 @@ def _render_research_workspace(
             )
 
     if submitted:
+        st.session_state.pop("last_research_result", None)
         _run_research(topic, model, source, knowledge_dir)
+    if st.session_state.get("last_research_result"):
+        _render_research_result(
+            st.session_state["last_research_result"],
+            st.session_state.get("last_research_model"),
+        )
 
 
 def _render_executive_workspace(
@@ -286,7 +316,13 @@ def _render_executive_workspace(
             )
 
     if submitted:
+        st.session_state.pop("last_executive_result", None)
         _run_executive_brief(question, context, model, source, knowledge_dir)
+    if st.session_state.get("last_executive_result"):
+        _render_executive_result(
+            st.session_state["last_executive_result"],
+            st.session_state.get("last_executive_model"),
+        )
 
 
 def _render_model_summary(available_models: list[str], workflow_name: str) -> None:
@@ -334,14 +370,8 @@ def _run_research(
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
-        with st.container(border=True):
-            st.subheader(":material/description: Research report")
-            _display_result(run_result.output)
-            _render_report_downloads(run_result.report_path)
-            st.divider()
-            st.caption(f"Model: {model}")
-            st.caption(f"Research source: {run_result.source}")
-            st.caption(f"Saved report: {run_result.report_path}")
+        st.session_state["last_research_result"] = run_result
+        st.session_state["last_research_model"] = model
     finally:
         st.session_state.run_in_progress = False
 
@@ -371,14 +401,8 @@ def _run_executive_brief(
     except Exception as error:
         st.error(get_safe_error_message(error))
     else:
-        with st.container(border=True):
-            st.subheader(":material/account_balance: CEO executive brief")
-            _display_result(run_result.output)
-            _render_report_downloads(run_result.report_path)
-            st.divider()
-            st.caption(f"Model: {model}")
-            st.caption(f"Research source: {run_result.source}")
-            st.caption(f"Saved report: {run_result.report_path}")
+        st.session_state["last_executive_result"] = run_result
+        st.session_state["last_executive_model"] = model
     finally:
         st.session_state.run_in_progress = False
 
