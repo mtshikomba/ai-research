@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+import shutil
 from types import SimpleNamespace
 import unittest
 import zipfile
@@ -35,6 +36,11 @@ from my_research_crew.report_storage import (
     create_report_path,
     report_output_file,
 )
+from my_research_crew.report_exports import (
+    markdown_download,
+    pdf_download,
+    report_download_filename,
+)
 from my_research_crew.crew import MyResearchCrew
 from my_research_crew.research_sources import (
     LocalKnowledgeError,
@@ -45,6 +51,39 @@ from my_research_crew.research_sources import (
 
 class DashboardServiceTests(unittest.TestCase):
     """Verify dashboard settings and CrewAI execution delegation."""
+
+    def test_report_downloads_read_contained_markdown_and_generate_pdf(self) -> None:
+        """Report exports preserve content and produce valid in-memory PDF bytes."""
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            report_path = project_root / "reports" / "research-run" / "report.md"
+            report_path.parent.mkdir(parents=True)
+            report_path.write_text(
+                "# Quarterly report\n\nPrivate findings.", encoding="utf-8"
+            )
+
+            markdown_bytes = markdown_download(report_path, project_root)
+            pdf_bytes = pdf_download(report_path, project_root)
+
+            self.assertEqual(markdown_bytes, b"# Quarterly report\n\nPrivate findings.")
+            self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+            self.assertGreater(len(pdf_bytes), 100)
+            self.assertEqual(
+                report_download_filename(report_path, ".md"), "research-run.md"
+            )
+            self.assertEqual(
+                report_download_filename(report_path, ".pdf"), "research-run.pdf"
+            )
+
+    def test_report_download_rejects_paths_outside_reports(self) -> None:
+        """Exports cannot read arbitrary paths outside the reports directory."""
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            outside_path = project_root / "private.txt"
+            outside_path.write_text("private", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "reports directory"):
+                markdown_download(outside_path, project_root)
 
     def test_save_session_knowledge_accepts_files_and_zip_without_shared_writes(
         self,
@@ -582,6 +621,38 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(
             app.warning[0].value, "Enter a topic before starting the crew."
         )
+
+    def test_dashboard_shows_report_downloads_after_successful_research(self) -> None:
+        """Completed research exposes Markdown and on-demand PDF actions."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        report_directory = PROJECT_ROOT / "reports" / "task-016-download-test"
+        report_path = report_directory / "report.md"
+        report_directory.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            "# Downloadable report\n\nReport content.", encoding="utf-8"
+        )
+        result = CrewRunResult(
+            "Report content.", report_path, ResearchSource.INTERNET.label
+        )
+
+        try:
+            with (
+                patch(
+                    "my_research_crew.dashboard.list_ollama_models",
+                    return_value=["gpt-oss:120b-cloud"],
+                ),
+                patch("my_research_crew.dashboard.run_crew", return_value=result),
+            ):
+                app = AppTest.from_file(app_path, default_timeout=30).run()
+                self.assertFalse(app.download_button)
+                app.text_input[0].set_value("download test").run()
+                app.button[0].click().run()
+
+            self.assertFalse(app.exception)
+            self.assertEqual(app.download_button[0].label, "Download Markdown")
+            self.assertEqual(app.button[-1].label, "Generate PDF")
+        finally:
+            shutil.rmtree(report_directory, ignore_errors=True)
 
     def test_dashboard_shows_peshiko_executive_workspace(self) -> None:
         """The executive workspace exposes labeled Peshiko briefing inputs."""
