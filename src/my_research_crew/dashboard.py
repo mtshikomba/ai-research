@@ -14,7 +14,6 @@ import streamlit as st
 
 from my_research_crew.dashboard_service import (
     DEFAULT_OLLAMA_MODEL,
-    KNOWLEDGE_DIR,
     OllamaModelInventoryError,
     OllamaSettings,
     get_ollama_settings,
@@ -23,7 +22,9 @@ from my_research_crew.dashboard_service import (
     purge_session_knowledge,
     run_crew,
     run_executive_crew,
+    save_session_knowledge,
     select_ollama_model,
+    session_knowledge_dir,
     session_has_expired,
 )
 from my_research_crew.research_sources import (
@@ -49,7 +50,7 @@ def _load_models(api_base: str) -> list[str]:
 
 
 def _render_research_workspace(
-    available_models: list[str], selected_default: str
+    available_models: list[str], selected_default: str, knowledge_dir: Path
 ) -> None:
     """Render the existing research workflow."""
     st.title("My Research Crew")
@@ -68,17 +69,45 @@ def _render_research_workspace(
             selection_mode="single",
         )
         source = ResearchSource.parse(source_label or ResearchSource.INTERNET.label)
-        local_status = inspect_local_knowledge(KNOWLEDGE_DIR)
         if source is ResearchSource.LOCAL:
+            uploaded_files = st.file_uploader(
+                "Session knowledge",
+                type=["txt", "md", "csv", "json", "yaml", "yml", "zip"],
+                accept_multiple_files=True,
+                disabled=st.session_state.run_in_progress,
+                help=(
+                    "Upload supported files or a ZIP folder. Files are private to "
+                    "this session and deleted when the session expires."
+                ),
+                key="session-knowledge-upload",
+            )
+            if uploaded_files:
+                upload_result = save_session_knowledge(
+                    st.session_state.session_id,
+                    uploaded_files,
+                )
+                if upload_result.accepted_files:
+                    st.success(
+                        f"Added {upload_result.accepted_files} session knowledge "
+                        "file(s)."
+                    )
+                if upload_result.rejected_files:
+                    st.warning(
+                        "Rejected upload(s): "
+                        + ", ".join(upload_result.rejected_files)
+                        + ". Use supported text formats or a safe ZIP folder."
+                    )
+            local_status = inspect_local_knowledge(knowledge_dir)
             if local_status.is_ready:
                 st.success(
-                    "Local knowledge is ready. This run will stay local and "
-                    "will not access the internet."
+                    f"Session knowledge is ready: {local_status.usable_file_count} "
+                    "usable file(s). This run will stay local and will not access "
+                    "the internet."
                 )
             else:
                 st.warning(
-                    "No usable local knowledge is available. Add supported "
-                    "files under knowledge/ before running."
+                    "Upload supported session knowledge before running local "
+                    "research."
                 )
         else:
             st.caption(
@@ -104,19 +133,16 @@ def _render_research_workspace(
             )
 
     if submitted:
-        _run_research(topic, model, source)
+        _run_research(topic, model, source, knowledge_dir)
 
 
 def _render_executive_workspace(
-    available_models: list[str], selected_default: str
+    available_models: list[str], selected_default: str, knowledge_dir: Path
 ) -> None:
     """Render the Peshiko Investments Group executive briefing workflow."""
     st.title("Peshiko Investments Group")
     st.caption("Executive briefing workspace")
     _render_model_summary(available_models, "CEO-led executive assessment")
-
-    peshiko_knowledge_dir = Path(__file__).resolve().parents[2] / "knowledge" / "peshiko"
-    local_status = inspect_local_knowledge(peshiko_knowledge_dir)
 
     with st.container(border=True):
         st.subheader(":material/account_balance: Executive briefing")
@@ -131,15 +157,44 @@ def _render_executive_workspace(
         )
         source = ResearchSource.parse(source_label or ResearchSource.LOCAL.label)
         if source is ResearchSource.LOCAL:
+            uploaded_files = st.file_uploader(
+                "Session knowledge",
+                type=["txt", "md", "csv", "json", "yaml", "yml", "zip"],
+                accept_multiple_files=True,
+                disabled=st.session_state.run_in_progress,
+                help=(
+                    "Upload supported files or a ZIP folder. Files are private to "
+                    "this session and deleted when the session expires."
+                ),
+                key="executive-session-knowledge-upload",
+            )
+            if uploaded_files:
+                upload_result = save_session_knowledge(
+                    st.session_state.session_id,
+                    uploaded_files,
+                )
+                if upload_result.accepted_files:
+                    st.success(
+                        f"Added {upload_result.accepted_files} session knowledge "
+                        "file(s)."
+                    )
+                if upload_result.rejected_files:
+                    st.warning(
+                        "Rejected upload(s): "
+                        + ", ".join(upload_result.rejected_files)
+                        + ". Use supported text formats or a safe ZIP folder."
+                    )
+            local_status = inspect_local_knowledge(knowledge_dir)
             if local_status.is_ready:
                 st.success(
-                    "Local Peshiko knowledge is ready. This run will stay local and "
-                    "will not access the internet."
+                    f"Session knowledge is ready: {local_status.usable_file_count} "
+                    "usable file(s). This briefing will stay local and will not "
+                    "access the internet."
                 )
             else:
                 st.warning(
-                    "No usable local Peshiko knowledge is available. Add supported "
-                    "files under knowledge/peshiko before running."
+                    "Upload supported session knowledge before preparing a local "
+                    "executive brief."
                 )
         else:
             st.caption(
@@ -175,7 +230,7 @@ def _render_executive_workspace(
             )
 
     if submitted:
-        _run_executive_brief(question, context, model, source)
+        _run_executive_brief(question, context, model, source, knowledge_dir)
 
 
 def _render_model_summary(available_models: list[str], workflow_name: str) -> None:
@@ -206,12 +261,18 @@ def _run_research(
     topic: str,
     model: str | None,
     source: ResearchSource,
+    knowledge_dir: Path,
 ) -> None:
     """Execute and render a research run."""
     st.session_state.run_in_progress = True
     try:
         with st.spinner(f"Running {source.label} research with {model}..."):
-            run_result = run_crew(topic, model or "", source)
+            run_result = run_crew(
+                topic,
+                model or "",
+                source,
+                knowledge_dir=knowledge_dir,
+            )
     except ValueError as error:
         st.warning(str(error))
     except Exception as error:
@@ -229,7 +290,11 @@ def _run_research(
 
 
 def _run_executive_brief(
-    question: str, context: str, model: str | None, source: ResearchSource
+    question: str,
+    context: str,
+    model: str | None,
+    source: ResearchSource,
+    knowledge_dir: Path,
 ) -> None:
     """Execute and render a Peshiko CEO-led executive briefing."""
     st.session_state.run_in_progress = True
@@ -237,7 +302,13 @@ def _run_executive_brief(
         with st.spinner(
             f"Preparing CFO, COO, and CIO assessments with {model} for CEO synthesis..."
         ):
-            run_result = run_executive_crew(question, context, model or "", source)
+            run_result = run_executive_crew(
+                question,
+                context,
+                model or "",
+                source,
+                knowledge_dir=knowledge_dir,
+            )
     except ValueError as error:
         st.warning(str(error))
     except Exception as error:
@@ -274,6 +345,8 @@ def main() -> None:
         st.session_state["session_started_at"] = datetime.now(timezone.utc).isoformat()
         st.warning("Your 10-minute session expired. A fresh session has started.")
 
+    knowledge_dir = session_knowledge_dir(st.session_state.session_id)
+
     try:
         available_models = _load_models(settings.api_base)
         selected_default = select_ollama_model(available_models, settings.model)
@@ -288,7 +361,7 @@ def main() -> None:
         if st.session_state.run_in_progress:
             st.warning("Run in progress")
         elif available_models:
-            st.success("Ready")
+            st.caption("Ready")
 
     workspace = st.segmented_control(
         "Workspace",
@@ -302,9 +375,9 @@ def main() -> None:
         st.info(f"Using available model: {selected_default}")
 
     if workspace == "Executive briefing":
-        _render_executive_workspace(available_models, selected_default)
+        _render_executive_workspace(available_models, selected_default, knowledge_dir)
     else:
-        _render_research_workspace(available_models, selected_default)
+        _render_research_workspace(available_models, selected_default, knowledge_dir)
 
 
 if __name__ == "__main__":

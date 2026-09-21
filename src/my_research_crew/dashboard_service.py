@@ -15,7 +15,11 @@ from urllib.request import urlopen
 from dotenv import load_dotenv
 
 from my_research_crew.research_sources import (
+    MAX_ARCHIVE_BYTES,
+    MAX_FILE_BYTES,
+    LocalKnowledgeError,
     ResearchSource,
+    SUPPORTED_LOCAL_SUFFIXES,
     prepare_local_knowledge,
 )
 from my_research_crew.report_storage import PROJECT_ROOT, create_report_path
@@ -61,6 +65,14 @@ class ExecutiveRunResult:
     output: Any
     report_path: Path
     source: str = ResearchSource.LOCAL.label
+
+
+@dataclass(frozen=True)
+class SessionUploadResult:
+    """Summary of one session knowledge upload operation."""
+
+    accepted_files: int
+    rejected_files: tuple[str, ...]
 
 
 class OllamaModelInventoryError(Exception):
@@ -175,9 +187,7 @@ def session_has_expired(
     return datetime.now(timezone.utc) >= cutoff
 
 
-def purge_session_knowledge(
-    session_id: str, project_root: Path | None = None
-) -> None:
+def purge_session_knowledge(session_id: str, project_root: Path | None = None) -> None:
     """Delete only the session-scoped knowledge folder for one browser session."""
     root = (project_root or PROJECT_ROOT).resolve()
     session_dir = root / "sessions" / session_id / "knowledge"
@@ -190,6 +200,71 @@ def purge_session_knowledge(
             session_root.rmdir()
         except OSError:
             pass
+
+
+def session_knowledge_dir(session_id: str, project_root: Path | None = None) -> Path:
+    """Return the contained knowledge directory for one browser session.
+
+    Args:
+        session_id: Identifier assigned to the current browser session.
+        project_root: Optional project root used by tests.
+
+    Returns:
+        The session-scoped knowledge directory.
+
+    Raises:
+        ValueError: If the session identifier could escape the sessions root.
+    """
+    root = (project_root or PROJECT_ROOT).resolve()
+    sessions_root = (root / "sessions").resolve()
+    session_root = (sessions_root / session_id).resolve()
+    if not session_root.is_relative_to(sessions_root):
+        raise ValueError("Invalid session identifier.")
+    return session_root / "knowledge"
+
+
+def save_session_knowledge(
+    session_id: str,
+    uploaded_files: list[Any],
+    project_root: Path | None = None,
+) -> SessionUploadResult:
+    """Persist supported uploaded files inside one session knowledge directory.
+
+    Args:
+        session_id: Identifier assigned to the current browser session.
+        uploaded_files: Streamlit uploaded-file objects with ``name`` and
+            ``getvalue`` attributes.
+        project_root: Optional project root used by tests.
+
+    Returns:
+        Counts of accepted files and filenames rejected by validation.
+    """
+    knowledge_dir = session_knowledge_dir(session_id, project_root)
+    accepted_files = 0
+    rejected_files: list[str] = []
+    for uploaded_file in uploaded_files:
+        filename = Path(str(getattr(uploaded_file, "name", ""))).name
+        suffix = Path(filename).suffix.lower()
+        if not filename or suffix not in SUPPORTED_LOCAL_SUFFIXES | {".zip"}:
+            rejected_files.append(filename or "unnamed file")
+            continue
+        destination = knowledge_dir / filename
+        try:
+            content = uploaded_file.getvalue()
+            max_upload_bytes = MAX_ARCHIVE_BYTES if suffix == ".zip" else MAX_FILE_BYTES
+            if not isinstance(content, bytes) or len(content) > max_upload_bytes:
+                rejected_files.append(filename)
+                continue
+            knowledge_dir.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+            if suffix == ".zip":
+                prepare_local_knowledge(knowledge_dir)
+        except (OSError, LocalKnowledgeError):
+            destination.unlink(missing_ok=True)
+            rejected_files.append(filename)
+            continue
+        accepted_files += 1
+    return SessionUploadResult(accepted_files, tuple(rejected_files))
 
 
 def get_safe_error_message(error: Exception) -> str:
@@ -224,6 +299,8 @@ def run_crew(
     topic: str,
     model: str,
     source: ResearchSource | str = ResearchSource.INTERNET,
+    *,
+    knowledge_dir: Path | None = None,
 ) -> CrewRunResult:
     """Run the configured CrewAI crew for a dashboard topic.
 
@@ -231,6 +308,7 @@ def run_crew(
         topic: Research topic supplied by the dashboard user.
         model: Ollama model selected for this run.
         source: Mutually exclusive Internet or Local knowledge source.
+        knowledge_dir: Explicit local knowledge directory for local runs.
 
     Returns:
         The CrewAI output and path of its saved report.
@@ -250,7 +328,7 @@ def run_crew(
 
     report_path = create_report_path(normalized_topic)
     if selected_source is ResearchSource.LOCAL:
-        source_context = prepare_local_knowledge(KNOWLEDGE_DIR).context
+        source_context = prepare_local_knowledge(knowledge_dir or KNOWLEDGE_DIR).context
     else:
         source_context = (
             "Internet research enabled. Local knowledge files were not read."
@@ -281,6 +359,8 @@ def run_executive_crew(
     business_context: str,
     model: str,
     source: ResearchSource | str = ResearchSource.LOCAL,
+    *,
+    knowledge_dir: Path | None = None,
 ) -> ExecutiveRunResult:
     """Run a CEO-led Peshiko executive briefing.
 
@@ -290,6 +370,7 @@ def run_executive_crew(
         model: Ollama model selected for this run.
         source: Evidence source selected for the briefing, either Internet or
             Local knowledge.
+        knowledge_dir: Explicit local knowledge directory for local briefings.
 
     Returns:
         The executive brief and its saved report path.
@@ -309,12 +390,16 @@ def run_executive_crew(
     from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 
     if selected_source is ResearchSource.LOCAL:
-        local_knowledge_summary = PeshikoInvestmentsCrew._local_knowledge_summary()
-        if not isinstance(local_knowledge_summary, str):
-            local_knowledge_summary = (
-                "Local Peshiko knowledge is available under knowledge/peshiko."
+        if knowledge_dir is None:
+            raise ValueError(
+                "A session knowledge directory is required for local briefings."
             )
-        source_context = "Local Peshiko knowledge was used as the primary source."
+        local_knowledge = prepare_local_knowledge(knowledge_dir)
+        local_knowledge_summary = (
+            "Session knowledge was used as the primary source.\n\n"
+            + local_knowledge.context
+        )
+        source_context = "Session knowledge was used as the primary source."
     else:
         local_knowledge_summary = (
             "Internet research was selected; local Peshiko knowledge was not used "
