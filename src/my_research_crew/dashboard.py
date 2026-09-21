@@ -11,6 +11,7 @@ import streamlit as st
 
 from my_research_crew.dashboard_service import (
     DEFAULT_OLLAMA_MODEL,
+    KNOWLEDGE_DIR,
     OllamaModelInventoryError,
     OllamaSettings,
     get_ollama_settings,
@@ -19,6 +20,10 @@ from my_research_crew.dashboard_service import (
     run_crew,
     run_executive_crew,
     select_ollama_model,
+)
+from my_research_crew.research_sources import (
+    ResearchSource,
+    inspect_local_knowledge,
 )
 
 
@@ -49,6 +54,33 @@ def _render_research_workspace(
     with st.container(border=True):
         st.subheader(":material/tune: Research setup")
         st.caption("Choose a model and topic, then let the crew prepare a report.")
+        source_label = st.segmented_control(
+            "Research source",
+            [ResearchSource.INTERNET.label, ResearchSource.LOCAL.label],
+            default=ResearchSource.INTERNET.label,
+            key="research-source",
+            disabled=st.session_state.run_in_progress,
+            selection_mode="single",
+        )
+        source = ResearchSource.parse(source_label or ResearchSource.INTERNET.label)
+        local_status = inspect_local_knowledge(KNOWLEDGE_DIR)
+        if source is ResearchSource.LOCAL:
+            if local_status.is_ready:
+                st.success(
+                    "Local knowledge is ready. This run will stay local and "
+                    "will not access the internet."
+                )
+            else:
+                st.warning(
+                    "No usable local knowledge is available. Add supported "
+                    "files under knowledge/ before running."
+                )
+        else:
+            st.caption(
+                "Uses public internet sources and does not read local "
+                "knowledge files."
+            )
+
         with st.form("research-run-form", clear_on_submit=False):
             model = _model_selector(available_models, selected_default, "research")
             topic = st.text_input(
@@ -58,12 +90,16 @@ def _render_research_workspace(
             )
             submitted = st.form_submit_button(
                 "Run research",
-                disabled=st.session_state.run_in_progress or not available_models,
+                disabled=(
+                    st.session_state.run_in_progress
+                    or not available_models
+                    or (source is ResearchSource.LOCAL and not local_status.is_ready)
+                ),
                 type="primary",
             )
 
     if submitted:
-        _run_research(topic, model)
+        _run_research(topic, model, source)
 
 
 def _render_executive_workspace(
@@ -78,7 +114,9 @@ def _render_executive_workspace(
         st.subheader(":material/account_balance: Executive briefing")
         st.caption("Prepare CFO, COO, and CIO assessments for CEO synthesis.")
         st.info(
-            "Source order: local Peshiko knowledge first. Extract any zipped business or historical archives in knowledge/peshiko before using internet research as a fallback."
+            "Source order: local Peshiko knowledge first. Extract any zipped "
+            "business or historical archives in knowledge/peshiko before "
+            "using internet research as a fallback."
         )
         with st.form("executive-run-form", clear_on_submit=False):
             model = _model_selector(available_models, selected_default, "executive")
@@ -132,12 +170,16 @@ def _model_selector(
     )
 
 
-def _run_research(topic: str, model: str | None) -> None:
+def _run_research(
+    topic: str,
+    model: str | None,
+    source: ResearchSource,
+) -> None:
     """Execute and render a research run."""
     st.session_state.run_in_progress = True
     try:
-        with st.spinner(f"Running the research workflow with {model}..."):
-            run_result = run_crew(topic, model or "")
+        with st.spinner(f"Running {source.label} research with {model}..."):
+            run_result = run_crew(topic, model or "", source)
     except ValueError as error:
         st.warning(str(error))
     except Exception as error:
@@ -148,6 +190,7 @@ def _run_research(topic: str, model: str | None) -> None:
             _display_result(run_result.output)
             st.divider()
             st.caption(f"Model: {model}")
+            st.caption(f"Research source: {run_result.source}")
             st.caption(f"Saved report: {run_result.report_path}")
     finally:
         st.session_state.run_in_progress = False

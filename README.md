@@ -73,6 +73,22 @@ prefers `gpt-oss:120b-cloud` when available; otherwise it uses `MODEL` from
 `.env` or the environment. The default endpoint is
 `http://192.168.1.153:11434`.
 
+### Research sources
+
+The Research workspace defaults to `Internet`. Use the `Research source`
+control to select exactly one source for each run:
+
+- `Internet` searches public web sources and does not read files under
+	`knowledge/`.
+- `Local knowledge` reads only supported `.txt`, `.md`, `.csv`, `.json`,
+	`.yaml`, and `.yml` files under `knowledge/` and does not access the internet.
+
+Local ZIP archives are validated and extracted beneath
+`knowledge/.extracted/` before their supported files are read. Unsafe,
+encrypted, corrupt, or oversized archives are rejected. Local mode does not
+fall back to internet research when usable local data is unavailable. The
+entire `knowledge/` directory remains ignored by Git.
+
 ## Peshiko Executive Briefing
 
 Select `Executive briefing` in the dashboard to ask Peshiko Investments Group's

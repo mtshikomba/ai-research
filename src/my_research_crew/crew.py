@@ -4,6 +4,7 @@ from crewai import Agent, Crew, LLM, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 
 from my_research_crew.dashboard_service import get_ollama_settings
+from my_research_crew.research_sources import InternetSearchTool, ResearchSource
 from my_research_crew.report_storage import create_report_path, report_output_file
 
 # If you want to run a snippet of code before or after the crew starts,
@@ -22,16 +23,24 @@ class MyResearchCrew:
     tasks_config = "config/tasks.yaml"
 
     def __init__(
-        self, report_path: Path | None = None, model: str | None = None
+        self,
+        report_path: Path | None = None,
+        model: str | None = None,
+        source: ResearchSource = ResearchSource.INTERNET,
+        source_context: str = "Internet research enabled.",
     ) -> None:
         """Initialize the crew with an optional run-specific report path.
 
         Args:
             report_path: Destination for the reporting task output.
             model: Ollama model selected for this crew run.
+            source: Exclusive evidence source selected for this run.
+            source_context: Prepared source instructions or local file content.
         """
         self.report_path = report_path
         self.model = model
+        self.source = ResearchSource.parse(source)
+        self.source_context = source_context
 
     def _llm(self) -> LLM:
         """Create an LLM configured for the local Ollama service.
@@ -49,10 +58,12 @@ class MyResearchCrew:
     # https://docs.crewai.com/concepts/agents#agent-tools
     @agent
     def researcher(self) -> Agent:
+        tools = [InternetSearchTool()] if self.source is ResearchSource.INTERNET else []
         return Agent(
             config=self.agents_config["researcher"],
             verbose=True,
             llm=self._llm(),
+            tools=tools,
         )
 
     @agent

@@ -13,10 +13,15 @@ import json
 
 from dotenv import load_dotenv
 
+from my_research_crew.research_sources import (
+    ResearchSource,
+    prepare_local_knowledge,
+)
 from my_research_crew.report_storage import create_report_path
 
 DEFAULT_OLLAMA_MODEL = "gpt-oss:120b-cloud"
 DEFAULT_OLLAMA_API_BASE = "http://192.168.1.153:11434"
+KNOWLEDGE_DIR = Path(__file__).resolve().parents[2] / "knowledge"
 
 
 @dataclass(frozen=True)
@@ -39,10 +44,12 @@ class CrewRunResult:
     Attributes:
         output: Value returned by CrewAI kickoff.
         report_path: Final report path reserved for the run.
+        source: User-facing label for the selected evidence source.
     """
 
     output: Any
     report_path: Path
+    source: str
 
 
 @dataclass(frozen=True)
@@ -129,7 +136,12 @@ def select_ollama_model(available_models: list[str], configured_model: str) -> s
     return available_models[0]
 
 
-def _create_crew(report_path: Path, model: str) -> Any:
+def _create_crew(
+    report_path: Path,
+    model: str,
+    source: ResearchSource,
+    source_context: str,
+) -> Any:
     """Create the existing configured CrewAI crew on demand.
 
     Returns:
@@ -137,7 +149,12 @@ def _create_crew(report_path: Path, model: str) -> Any:
     """
     from my_research_crew.crew import MyResearchCrew
 
-    return MyResearchCrew(report_path=report_path, model=model).crew()
+    return MyResearchCrew(
+        report_path=report_path,
+        model=model,
+        source=source,
+        source_context=source_context,
+    ).crew()
 
 
 def get_safe_error_message(error: Exception) -> str:
@@ -168,12 +185,17 @@ def get_safe_error_message(error: Exception) -> str:
     )
 
 
-def run_crew(topic: str, model: str) -> CrewRunResult:
+def run_crew(
+    topic: str,
+    model: str,
+    source: ResearchSource | str = ResearchSource.INTERNET,
+) -> CrewRunResult:
     """Run the configured CrewAI crew for a dashboard topic.
 
     Args:
         topic: Research topic supplied by the dashboard user.
         model: Ollama model selected for this run.
+        source: Mutually exclusive Internet or Local knowledge source.
 
     Returns:
         The CrewAI output and path of its saved report.
@@ -189,16 +211,34 @@ def run_crew(topic: str, model: str) -> CrewRunResult:
     normalized_model = model.strip()
     if not normalized_model:
         raise ValueError("Select an Ollama model before starting the crew.")
+    selected_source = ResearchSource.parse(source)
 
     report_path = create_report_path(normalized_topic)
+    if selected_source is ResearchSource.LOCAL:
+        source_context = prepare_local_knowledge(KNOWLEDGE_DIR).context
+    else:
+        source_context = (
+            "Internet research enabled. Local knowledge files were not read."
+        )
 
-    output = _create_crew(report_path, normalized_model).kickoff(
+    output = _create_crew(
+        report_path,
+        normalized_model,
+        selected_source,
+        source_context,
+    ).kickoff(
         inputs={
             "topic": normalized_topic,
             "current_year": str(datetime.now().year),
+            "research_source": selected_source.label,
+            "source_context": source_context,
         }
     )
-    return CrewRunResult(output=output, report_path=report_path)
+    return CrewRunResult(
+        output=output,
+        report_path=report_path,
+        source=selected_source.label,
+    )
 
 
 def run_executive_crew(
@@ -230,9 +270,7 @@ def run_executive_crew(
     local_knowledge_summary = PeshikoInvestmentsCrew._local_knowledge_summary()
     effective_context = business_context.strip() or "No additional context provided."
     if local_knowledge_summary:
-        effective_context = (
-            f"{local_knowledge_summary}\n\n{effective_context}"
-        )
+        effective_context = f"{local_knowledge_summary}\n\n{effective_context}"
 
     output = (
         PeshikoInvestmentsCrew(report_path=report_path, model=selected_model)
