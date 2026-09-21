@@ -1,9 +1,11 @@
 """Focused tests for dashboard configuration and CrewAI execution."""
 
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+from types import SimpleNamespace
 import unittest
 import zipfile
 from unittest.mock import MagicMock, patch
@@ -21,8 +23,10 @@ from my_research_crew.dashboard_service import (
     list_ollama_models,
     purge_session_knowledge,
     run_crew,
+    save_session_knowledge,
     run_executive_crew,
     select_ollama_model,
+    session_knowledge_dir,
     session_has_expired,
 )
 from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
@@ -32,11 +36,116 @@ from my_research_crew.report_storage import (
     report_output_file,
 )
 from my_research_crew.crew import MyResearchCrew
-from my_research_crew.research_sources import LocalKnowledgeError, ResearchSource
+from my_research_crew.research_sources import (
+    LocalKnowledgeError,
+    ResearchSource,
+    prepare_local_knowledge,
+)
 
 
 class DashboardServiceTests(unittest.TestCase):
     """Verify dashboard settings and CrewAI execution delegation."""
+
+    def test_save_session_knowledge_accepts_files_and_zip_without_shared_writes(
+        self,
+    ) -> None:
+        """Uploads are stored in the session root and ZIP content is readable."""
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            shared_file = project_root / "knowledge" / "shared.txt"
+            shared_file.parent.mkdir(parents=True)
+            shared_file.write_text("shared content", encoding="utf-8")
+            archive_buffer = BytesIO()
+            with zipfile.ZipFile(archive_buffer, "w") as archive:
+                archive.writestr("folder/notes.md", "private archive content")
+
+            result = save_session_knowledge(
+                "session-42",
+                [
+                    SimpleNamespace(name="notes.txt", getvalue=lambda: b"private file"),
+                    SimpleNamespace(
+                        name="folder.zip", getvalue=lambda: archive_buffer.getvalue()
+                    ),
+                ],
+                project_root,
+            )
+
+            knowledge_dir = session_knowledge_dir("session-42", project_root)
+            self.assertEqual(result.accepted_files, 2)
+            self.assertEqual(result.rejected_files, ())
+            self.assertIn("private file", (knowledge_dir / "notes.txt").read_text())
+            prepared = prepare_local_knowledge(knowledge_dir)
+            self.assertIn("private archive content", prepared.context)
+            self.assertEqual(shared_file.read_text(), "shared content")
+
+    def test_save_session_knowledge_rejects_unsupported_files(self) -> None:
+        """Unsupported uploads are rejected without being written."""
+        with TemporaryDirectory() as temporary_directory:
+            result = save_session_knowledge(
+                "session-42",
+                [SimpleNamespace(name="secrets.pdf", getvalue=lambda: b"private")],
+                Path(temporary_directory),
+            )
+
+            self.assertEqual(result.accepted_files, 0)
+            self.assertEqual(result.rejected_files, ("secrets.pdf",))
+            self.assertFalse(
+                (
+                    session_knowledge_dir("session-42", Path(temporary_directory))
+                    / "secrets.pdf"
+                ).exists()
+            )
+
+    def test_save_session_knowledge_rejects_unsafe_zip_entries(self) -> None:
+        """ZIP traversal entries are rejected without escaping the session root."""
+        archive_buffer = BytesIO()
+        with zipfile.ZipFile(archive_buffer, "w") as archive:
+            archive.writestr("../../outside.txt", "must not escape")
+
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            result = save_session_knowledge(
+                "session-42",
+                [
+                    SimpleNamespace(
+                        name="unsafe.zip", getvalue=lambda: archive_buffer.getvalue()
+                    )
+                ],
+                project_root,
+            )
+
+            self.assertEqual(result.accepted_files, 0)
+            self.assertEqual(result.rejected_files, ("unsafe.zip",))
+            self.assertFalse((project_root / "outside.txt").exists())
+
+    def test_run_crew_uses_only_explicit_session_knowledge_directory(self) -> None:
+        """Local runs prepare context from the supplied session directory."""
+        crew = MagicMock()
+        crew.kickoff.return_value = "local output"
+        with TemporaryDirectory() as temporary_directory:
+            session_dir = Path(temporary_directory) / "session-42" / "knowledge"
+            with (
+                patch(
+                    "my_research_crew.dashboard_service.create_report_path",
+                    return_value=Path(temporary_directory) / "report.md",
+                ),
+                patch(
+                    "my_research_crew.dashboard_service.prepare_local_knowledge"
+                ) as prepare,
+                patch(
+                    "my_research_crew.dashboard_service._create_crew",
+                    return_value=crew,
+                ),
+            ):
+                prepare.return_value.context = "session-only content"
+                run_crew(
+                    "topic",
+                    "model",
+                    ResearchSource.LOCAL,
+                    knowledge_dir=session_dir,
+                )
+
+        prepare.assert_called_once_with(session_dir)
 
     def test_get_ollama_settings_uses_defaults(self) -> None:
         """The dashboard falls back to the approved local Ollama settings."""
@@ -203,20 +312,26 @@ class DashboardServiceTests(unittest.TestCase):
 
         with TemporaryDirectory() as temporary_directory:
             report_path = Path(temporary_directory) / "report.md"
+            session_dir = Path(temporary_directory) / "session-42" / "knowledge"
             with (
                 patch(
                     "my_research_crew.dashboard_service.create_report_path",
                     return_value=report_path,
                 ),
                 patch(
+                    "my_research_crew.dashboard_service.prepare_local_knowledge"
+                ) as prepare,
+                patch(
                     "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew",
                 ) as executive_crew,
             ):
+                prepare.return_value.context = "session executive evidence"
                 executive_crew.return_value.crew.return_value = crew
                 result = run_executive_crew(
                     "Should we expand?",
                     "Cash reserves are constrained.",
                     "llama3.1:latest",
+                    knowledge_dir=session_dir,
                 )
 
         self.assertEqual(result, ExecutiveRunResult("executive output", report_path))
@@ -236,21 +351,27 @@ class DashboardServiceTests(unittest.TestCase):
 
         with TemporaryDirectory() as temporary_directory:
             report_path = Path(temporary_directory) / "report.md"
+            session_dir = Path(temporary_directory) / "session-42" / "knowledge"
             with (
                 patch(
                     "my_research_crew.dashboard_service.create_report_path",
                     return_value=report_path,
                 ),
                 patch(
+                    "my_research_crew.dashboard_service.prepare_local_knowledge"
+                ) as prepare,
+                patch(
                     "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew",
                 ) as executive_crew,
             ):
+                prepare.return_value.context = "session executive evidence"
                 executive_crew.return_value.crew.return_value = crew
                 result = run_executive_crew(
                     "Should we expand?",
                     "Cash reserves are constrained.",
                     "llama3.1:latest",
                     ResearchSource.LOCAL,
+                    knowledge_dir=session_dir,
                 )
 
         self.assertEqual(
@@ -265,7 +386,49 @@ class DashboardServiceTests(unittest.TestCase):
             kickoff.call_args.kwargs["inputs"]["research_source"],
             ResearchSource.LOCAL.label,
         )
-        self.assertIn("Local Peshiko knowledge", kickoff.call_args.kwargs["inputs"]["local_knowledge_summary"])
+        self.assertIn(
+            "session executive evidence",
+            kickoff.call_args.kwargs["inputs"]["local_knowledge_summary"],
+        )
+
+    def test_run_executive_crew_uses_only_explicit_session_knowledge_directory(
+        self,
+    ) -> None:
+        """Local executive runs prepare context from the supplied session path."""
+        kickoff = MagicMock(return_value="executive output")
+        crew = MagicMock()
+        crew.kickoff = kickoff
+
+        with TemporaryDirectory() as temporary_directory:
+            session_dir = Path(temporary_directory) / "session-42" / "knowledge"
+            report_path = Path(temporary_directory) / "report.md"
+            with (
+                patch(
+                    "my_research_crew.dashboard_service.create_report_path",
+                    return_value=report_path,
+                ),
+                patch(
+                    "my_research_crew.dashboard_service.prepare_local_knowledge"
+                ) as prepare,
+                patch(
+                    "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew",
+                ) as executive_crew,
+            ):
+                prepare.return_value.context = "private executive evidence"
+                executive_crew.return_value.crew.return_value = crew
+                run_executive_crew(
+                    "Should we expand?",
+                    "Cash reserves are constrained.",
+                    "llama3.1:latest",
+                    ResearchSource.LOCAL,
+                    knowledge_dir=session_dir,
+                )
+
+        prepare.assert_called_once_with(session_dir)
+        self.assertIn(
+            "private executive evidence",
+            kickoff.call_args.kwargs["inputs"]["local_knowledge_summary"],
+        )
 
     def test_peshiko_crew_has_ceo_context_for_specialist_tasks(self) -> None:
         """The CEO brief consumes the CFO, COO, and CIO task assessments."""
@@ -436,8 +599,44 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(app.text_area[1].label, "Business context (optional)")
         self.assertEqual(app.button[0].label, "Prepare executive brief")
 
+    def test_dashboard_executive_local_mode_requires_session_knowledge(self) -> None:
+        """Executive local mode exposes session uploads and blocks empty runs."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[0].set_value("Executive briefing").run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.file_uploader[0].label, "Session knowledge")
+        self.assertIn("Upload supported session knowledge", app.warning[0].value)
+        self.assertTrue(app.button[0].disabled)
+
+    def test_dashboard_executive_accepts_session_knowledge_upload(self) -> None:
+        """The executive workspace becomes ready after a supported upload."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[0].set_value("Executive briefing").run()
+            session_id = app.session_state["session_id"]
+            app.file_uploader[0].set_value(
+                ("briefing.txt", b"private executive evidence", "text/plain")
+            ).run()
+
+        try:
+            self.assertFalse(app.exception)
+            self.assertIn("Session knowledge is ready", app.success[1].value)
+            self.assertFalse(app.button[0].disabled)
+        finally:
+            purge_session_knowledge(session_id)
+
     def test_dashboard_explains_local_research_mode(self) -> None:
-        """Local mode identifies its isolation and remains selected on rerun."""
+        """Local mode requires private session knowledge before it can run."""
         app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
         with patch(
             "my_research_crew.dashboard.list_ollama_models",
@@ -448,7 +647,30 @@ class DashboardServiceTests(unittest.TestCase):
 
         self.assertFalse(app.exception)
         self.assertEqual(app.segmented_control[1].value, "Local knowledge")
-        self.assertIn("will not access the internet", app.success[0].value)
+        self.assertEqual(app.file_uploader[0].label, "Session knowledge")
+        self.assertIn("Upload supported session knowledge", app.warning[0].value)
+        self.assertTrue(app.button[0].disabled)
+
+    def test_dashboard_accepts_session_knowledge_upload(self) -> None:
+        """The local workspace reports readiness after a supported upload."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[1].set_value("Local knowledge").run()
+            session_id = app.session_state["session_id"]
+            app.file_uploader[0].set_value(
+                ("notes.txt", b"private session evidence", "text/plain")
+            ).run()
+
+        try:
+            self.assertFalse(app.exception)
+            self.assertIn("Session knowledge is ready", app.success[1].value)
+            self.assertFalse(app.button[0].disabled)
+        finally:
+            purge_session_knowledge(session_id)
 
     def test_dashboard_locks_research_controls_during_a_run(self) -> None:
         """The selected source and form controls remain visible but disabled."""
