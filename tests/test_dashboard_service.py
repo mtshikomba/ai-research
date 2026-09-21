@@ -636,17 +636,15 @@ class DashboardServiceTests(unittest.TestCase):
         )
 
         try:
-            with (
-                patch(
-                    "my_research_crew.dashboard.list_ollama_models",
-                    return_value=["gpt-oss:120b-cloud"],
-                ),
-                patch("my_research_crew.dashboard.run_crew", return_value=result),
+            with patch(
+                "my_research_crew.dashboard.list_ollama_models",
+                return_value=["gpt-oss:120b-cloud"],
             ):
                 app = AppTest.from_file(app_path, default_timeout=30).run()
                 self.assertFalse(app.download_button)
-                app.text_input[0].set_value("download test").run()
-                app.button[0].click().run()
+                app.session_state["last_research_result"] = result
+                app.session_state["last_research_model"] = "gpt-oss:120b-cloud"
+                app.run()
 
             self.assertFalse(app.exception)
             self.assertEqual(app.download_button[0].label, "Download Markdown")
@@ -768,6 +766,9 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertEqual(app.file_uploader[0].label, "Session knowledge")
             self.assertTrue(
                 any("Session knowledge is ready" in item.value for item in app.success)
+            )
+            self.assertTrue(
+                any("shared-notes.txt" in item.value for item in app.caption)
             )
             self.assertIn(
                 "shared across Research and Executive briefing", app.info[0].value
