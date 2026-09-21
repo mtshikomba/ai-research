@@ -5,6 +5,7 @@ The dashboard keeps Streamlit rendering separate from crew execution.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -110,14 +111,37 @@ def _render_executive_workspace(
     st.caption("Executive briefing workspace")
     _render_model_summary(available_models, "CEO-led executive assessment")
 
+    peshiko_knowledge_dir = Path(__file__).resolve().parents[2] / "knowledge" / "peshiko"
+    local_status = inspect_local_knowledge(peshiko_knowledge_dir)
+
     with st.container(border=True):
         st.subheader(":material/account_balance: Executive briefing")
         st.caption("Prepare CFO, COO, and CIO assessments for CEO synthesis.")
-        st.info(
-            "Source order: local Peshiko knowledge first. Extract any zipped "
-            "business or historical archives in knowledge/peshiko before "
-            "using internet research as a fallback."
+        source_label = st.segmented_control(
+            "Research source",
+            [ResearchSource.INTERNET.label, ResearchSource.LOCAL.label],
+            default=ResearchSource.LOCAL.label,
+            key="executive-research-source",
+            disabled=st.session_state.run_in_progress,
+            selection_mode="single",
         )
+        source = ResearchSource.parse(source_label or ResearchSource.LOCAL.label)
+        if source is ResearchSource.LOCAL:
+            if local_status.is_ready:
+                st.success(
+                    "Local Peshiko knowledge is ready. This run will stay local and "
+                    "will not access the internet."
+                )
+            else:
+                st.warning(
+                    "No usable local Peshiko knowledge is available. Add supported "
+                    "files under knowledge/peshiko before running."
+                )
+        else:
+            st.caption(
+                "Uses public internet sources and does not read local Peshiko "
+                "knowledge files."
+            )
         with st.form("executive-run-form", clear_on_submit=False):
             model = _model_selector(available_models, selected_default, "executive")
             question = st.text_area(
@@ -138,12 +162,16 @@ def _render_executive_workspace(
             )
             submitted = st.form_submit_button(
                 "Prepare executive brief",
-                disabled=st.session_state.run_in_progress or not available_models,
+                disabled=(
+                    st.session_state.run_in_progress
+                    or not available_models
+                    or (source is ResearchSource.LOCAL and not local_status.is_ready)
+                ),
                 type="primary",
             )
 
     if submitted:
-        _run_executive_brief(question, context, model)
+        _run_executive_brief(question, context, model, source)
 
 
 def _render_model_summary(available_models: list[str], workflow_name: str) -> None:
@@ -196,14 +224,16 @@ def _run_research(
         st.session_state.run_in_progress = False
 
 
-def _run_executive_brief(question: str, context: str, model: str | None) -> None:
+def _run_executive_brief(
+    question: str, context: str, model: str | None, source: ResearchSource
+) -> None:
     """Execute and render a Peshiko CEO-led executive briefing."""
     st.session_state.run_in_progress = True
     try:
         with st.spinner(
             f"Preparing CFO, COO, and CIO assessments with {model} for CEO synthesis..."
         ):
-            run_result = run_executive_crew(question, context, model or "")
+            run_result = run_executive_crew(question, context, model or "", source)
     except ValueError as error:
         st.warning(str(error))
     except Exception as error:
@@ -214,6 +244,7 @@ def _run_executive_brief(question: str, context: str, model: str | None) -> None
             _display_result(run_result.output)
             st.divider()
             st.caption(f"Model: {model}")
+            st.caption(f"Research source: {run_result.source}")
             st.caption(f"Saved report: {run_result.report_path}")
     finally:
         st.session_state.run_in_progress = False

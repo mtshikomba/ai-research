@@ -202,6 +202,45 @@ class DashboardServiceTests(unittest.TestCase):
             "Should we expand?",
         )
 
+    def test_run_executive_crew_respects_selected_source(self) -> None:
+        """The executive briefing chooses the selected evidence source explicitly."""
+        kickoff = MagicMock(return_value="executive output")
+        crew = MagicMock()
+        crew.kickoff = kickoff
+
+        with TemporaryDirectory() as temporary_directory:
+            report_path = Path(temporary_directory) / "report.md"
+            with (
+                patch(
+                    "my_research_crew.dashboard_service.create_report_path",
+                    return_value=report_path,
+                ),
+                patch(
+                    "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew",
+                ) as executive_crew,
+            ):
+                executive_crew.return_value.crew.return_value = crew
+                result = run_executive_crew(
+                    "Should we expand?",
+                    "Cash reserves are constrained.",
+                    "llama3.1:latest",
+                    ResearchSource.LOCAL,
+                )
+
+        self.assertEqual(
+            result,
+            ExecutiveRunResult(
+                "executive output",
+                report_path,
+                ResearchSource.LOCAL.label,
+            ),
+        )
+        self.assertEqual(
+            kickoff.call_args.kwargs["inputs"]["research_source"],
+            ResearchSource.LOCAL.label,
+        )
+        self.assertIn("Local Peshiko knowledge", kickoff.call_args.kwargs["inputs"]["local_knowledge_summary"])
+
     def test_peshiko_crew_has_ceo_context_for_specialist_tasks(self) -> None:
         """The CEO brief consumes the CFO, COO, and CIO task assessments."""
         crew = PeshikoInvestmentsCrew(model="llama3.1:latest")
