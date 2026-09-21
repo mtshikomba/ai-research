@@ -62,9 +62,10 @@ def _render_session_knowledge(knowledge_dir: Path) -> Any:
         accept_multiple_files=True,
         disabled=st.session_state.run_in_progress,
         help=(
-            "Upload supported files or a ZIP folder. Session knowledge is shared "
-            "between Research and Executive briefing for this session and is "
-            "deleted when the session expires."
+            "Upload TXT, MD, CSV, JSON, YAML, or YML files up to 2MB, or a ZIP "
+            "folder up to 50MB. Session knowledge is shared between Research and "
+            "Executive briefing for this session and is deleted when the session "
+            "expires."
         ),
         key="session-knowledge-upload",
     )

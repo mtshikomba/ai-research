@@ -89,5 +89,12 @@ Switching workspaces must not clear, duplicate, relocate, or replace the current
 - Internet modes remain clearly separated from session knowledge.
 - Expiry returns both workspaces to the same empty state.
 
+## UX review results
+- Browser validation passed at desktop and 390px-wide mobile dimensions.
+- A file uploaded in Research remained visible as `Available in this session` after switching to Executive briefing and back to Research.
+- Both workspaces showed the shared-session privacy message, the same readiness count, and enabled local action controls without horizontal overflow.
+- The existing 10-minute expiry behavior reset the session knowledge to an empty state during the review, which matches the lifecycle requirement.
+- Follow-up finding: Streamlit currently displays `200MB per file`, while the backend individual-file limit is 2MB. The upload guidance must be aligned with the enforced limit before this flow is considered fully polished.
+
 ## Ready for engineering
-This ticket is ready for technical review. The required source boundary is one canonical, session-scoped knowledge collection shared by Research and Executive briefing while remaining unavailable to Internet modes and other sessions.
+The source boundary is resolved: one canonical, session-scoped knowledge collection shared by Research and Executive briefing while remaining unavailable to Internet modes and other sessions. UX review passed the cross-workspace and narrow-layout flow, with the upload-size copy mismatch recorded for correction.

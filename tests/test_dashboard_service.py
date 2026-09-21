@@ -760,6 +760,8 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertIn(
                 "shared across Research and Executive briefing", app.info[0].value
             )
+            self.assertIn("up to 2MB", app.file_uploader[0].help)
+            self.assertIn("up to 50MB", app.file_uploader[0].help)
             app.segmented_control[0].set_value("Executive briefing").run()
 
             self.assertFalse(app.exception)
