@@ -6,7 +6,7 @@ from my_research_crew.team import Crew
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Run the my_research_crew MVP against a project root"
+        description="Run the my_research_crew research workflow against a project root"
     )
     parser.add_argument(
         "--repo-root",

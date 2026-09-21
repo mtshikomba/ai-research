@@ -13,10 +13,10 @@ from .validator import Validator
 
 
 class Crew:
-    """Minimal orchestrator for the MVP.
+    """Orchestrates the active research crew workflow.
 
-    Loads config from the existing project config directory and specifically
-    prefers the MVP files there when present.
+    Loads config from the canonical project config directory and defaults to the
+    active non-MVP agents and tasks definitions.
     """
 
     ENGINEER_TASKS = {"backend_development_task", "frontend_development_task"}
@@ -50,13 +50,13 @@ class Crew:
                 agent_repo_root, "src", "my_research_crew", "config"
             )
 
-        agent_file = os.path.join(self.config_dir, "mvp_agents.yaml")
-        task_file = os.path.join(self.config_dir, "mvp_tasks.yaml")
+        agent_file = os.path.join(self.config_dir, "agents.yaml")
+        task_file = os.path.join(self.config_dir, "tasks.yaml")
 
         if not os.path.exists(agent_file):
-            agent_file = os.path.join(self.config_dir, "agents.yaml")
+            raise FileNotFoundError(f"Agent config not found: {agent_file}")
         if not os.path.exists(task_file):
-            task_file = os.path.join(self.config_dir, "tasks.yaml")
+            raise FileNotFoundError(f"Task config not found: {task_file}")
 
         with open(agent_file, "r", encoding="utf-8") as f:
             self.agents = yaml.safe_load(f) or {}

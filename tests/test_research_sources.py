@@ -127,6 +127,13 @@ class ResearchSourceTests(unittest.TestCase):
         self.assertIsInstance(internet_crew.researcher().tools[0], InternetSearchTool)
         self.assertEqual(local_crew.researcher().tools, [])
 
+    def test_legacy_mvp_config_is_not_present(self) -> None:
+        """The active research crew configuration is the only supported config set."""
+        config_dir = Path(__file__).resolve().parents[1] / "src" / "my_research_crew" / "config"
+
+        self.assertFalse((config_dir / "mvp_agents.yaml").exists())
+        self.assertFalse((config_dir / "mvp_tasks.yaml").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

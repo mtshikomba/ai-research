@@ -10,7 +10,7 @@ class GitWorkflow:
     """Lightweight git helper for story-based engineering work.
 
     The helper intentionally fails gracefully when git or GitHub auth is missing,
-    so the agent loop does not crash the MVP when operating in a lightweight local
+    so the agent loop does not crash while operating in a lightweight local
     development environment.
     """
 
