@@ -1,5 +1,6 @@
 """Focused tests for dashboard configuration and CrewAI execution."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
@@ -18,9 +19,11 @@ from my_research_crew.dashboard_service import (
     get_safe_error_message,
     get_ollama_settings,
     list_ollama_models,
+    purge_session_knowledge,
     run_crew,
     run_executive_crew,
     select_ollama_model,
+    session_has_expired,
 )
 from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 from my_research_crew.report_storage import (
@@ -45,6 +48,29 @@ class DashboardServiceTests(unittest.TestCase):
 
         self.assertEqual(settings.model, DEFAULT_OLLAMA_MODEL)
         self.assertEqual(settings.api_base, DEFAULT_OLLAMA_API_BASE)
+
+    def test_session_has_expired_after_ten_minutes(self) -> None:
+        """A session is expired once its configured timeout elapses."""
+        started = datetime.now(timezone.utc) - timedelta(minutes=11)
+
+        self.assertTrue(session_has_expired(started))
+
+    def test_purge_session_knowledge_removes_only_session_state(self) -> None:
+        """The purge target is restricted to the session-specific knowledge directory."""
+        with TemporaryDirectory() as temporary_directory:
+            project_root = Path(temporary_directory)
+            session_dir = project_root / "sessions" / "session-42" / "knowledge"
+            session_dir.mkdir(parents=True)
+            (session_dir / "tmp.txt").write_text("stale user data", encoding="utf-8")
+            shared_dir = project_root / "knowledge" / "shared"
+            shared_dir.mkdir(parents=True)
+            (shared_dir / "shared.txt").write_text("keep me", encoding="utf-8")
+
+            purge_session_knowledge("session-42", project_root)
+
+            self.assertFalse(session_dir.exists())
+            self.assertTrue(shared_dir.exists())
+            self.assertTrue((shared_dir / "shared.txt").exists())
 
     def test_run_crew_sets_ollama_settings_and_passes_inputs(self) -> None:
         """The runner configures Ollama and delegates to the existing crew."""

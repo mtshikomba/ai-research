@@ -5,8 +5,10 @@ The dashboard keeps Streamlit rendering separate from crew execution.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import uuid
 
 import streamlit as st
 
@@ -18,9 +20,11 @@ from my_research_crew.dashboard_service import (
     get_ollama_settings,
     get_safe_error_message,
     list_ollama_models,
+    purge_session_knowledge,
     run_crew,
     run_executive_crew,
     select_ollama_model,
+    session_has_expired,
 )
 from my_research_crew.research_sources import (
     ResearchSource,
@@ -255,6 +259,20 @@ def main() -> None:
     st.set_page_config(page_title="My Research Crew", page_icon="M", layout="wide")
     settings = get_ollama_settings()
     st.session_state.setdefault("run_in_progress", False)
+    st.session_state.setdefault("session_id", f"session-{uuid.uuid4().hex[:12]}")
+    st.session_state.setdefault(
+        "session_started_at",
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+    if session_has_expired(st.session_state.get("session_started_at")):
+        session_id = st.session_state.get("session_id") or "default-session"
+        purge_session_knowledge(session_id)
+        st.session_state.clear()
+        st.session_state["run_in_progress"] = False
+        st.session_state["session_id"] = f"session-{uuid.uuid4().hex[:12]}"
+        st.session_state["session_started_at"] = datetime.now(timezone.utc).isoformat()
+        st.warning("Your 10-minute session expired. A fresh session has started.")
 
     try:
         available_models = _load_models(settings.api_base)

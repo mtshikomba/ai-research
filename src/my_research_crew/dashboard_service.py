@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import json
 import os
 from pathlib import Path
+import shutil
 from typing import Any
 from urllib.error import URLError
 from urllib.request import urlopen
-import json
 
 from dotenv import load_dotenv
 
@@ -17,10 +18,11 @@ from my_research_crew.research_sources import (
     ResearchSource,
     prepare_local_knowledge,
 )
-from my_research_crew.report_storage import create_report_path
+from my_research_crew.report_storage import PROJECT_ROOT, create_report_path
 
 DEFAULT_OLLAMA_MODEL = "gpt-oss:120b-cloud"
 DEFAULT_OLLAMA_API_BASE = "http://192.168.1.153:11434"
+SESSION_TIMEOUT_MINUTES = 10
 KNOWLEDGE_DIR = Path(__file__).resolve().parents[2] / "knowledge"
 
 
@@ -156,6 +158,38 @@ def _create_crew(
         source=source,
         source_context=source_context,
     ).crew()
+
+
+def session_has_expired(
+    started_at: datetime | str | None,
+    timeout_minutes: int = SESSION_TIMEOUT_MINUTES,
+) -> bool:
+    """Return whether a session has exceeded the configured inactivity window."""
+    if started_at is None:
+        return True
+    if isinstance(started_at, str):
+        started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    cutoff = started_at + timedelta(minutes=timeout_minutes)
+    return datetime.now(timezone.utc) >= cutoff
+
+
+def purge_session_knowledge(
+    session_id: str, project_root: Path | None = None
+) -> None:
+    """Delete only the session-scoped knowledge folder for one browser session."""
+    root = (project_root or PROJECT_ROOT).resolve()
+    session_dir = root / "sessions" / session_id / "knowledge"
+    if not session_dir.exists():
+        return
+    shutil.rmtree(session_dir, ignore_errors=True)
+    session_root = session_dir.parent.parent
+    if session_root.exists() and not any(session_root.iterdir()):
+        try:
+            session_root.rmdir()
+        except OSError:
+            pass
 
 
 def get_safe_error_message(error: Exception) -> str:
