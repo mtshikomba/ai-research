@@ -54,6 +54,52 @@ def _load_models(api_base: str) -> list[str]:
     return list_ollama_models(OllamaSettings(model="", api_base=api_base))
 
 
+def _render_session_knowledge(knowledge_dir: Path) -> Any:
+    """Render the shared session knowledge uploader and return its readiness."""
+    uploaded_files = st.file_uploader(
+        "Session knowledge",
+        type=["txt", "md", "csv", "json", "yaml", "yml", "zip"],
+        accept_multiple_files=True,
+        disabled=st.session_state.run_in_progress,
+        help=(
+            "Upload supported files or a ZIP folder. Session knowledge is shared "
+            "between Research and Executive briefing for this session and is "
+            "deleted when the session expires."
+        ),
+        key="session-knowledge-upload",
+    )
+    if uploaded_files:
+        upload_result = save_session_knowledge(
+            st.session_state.session_id,
+            uploaded_files,
+        )
+        if upload_result.accepted_files:
+            st.success(
+                f"Added {upload_result.accepted_files} session knowledge file(s)."
+            )
+        if upload_result.rejected_files:
+            st.warning(
+                "Rejected upload(s): "
+                + ", ".join(upload_result.rejected_files)
+                + ". Use supported text formats or a safe ZIP folder."
+            )
+
+    local_status = inspect_local_knowledge(knowledge_dir)
+    st.info(
+        "Session knowledge is shared across Research and Executive briefing and "
+        "private to this session."
+    )
+    if local_status.is_ready:
+        st.success(
+            f"Session knowledge is ready: {local_status.usable_file_count} "
+            "usable file(s). This run will stay local and will not access the "
+            "internet."
+        )
+    else:
+        st.warning("Upload supported session knowledge before running locally.")
+    return local_status
+
+
 def _render_report_downloads(report_path: Path) -> None:
     """Render Markdown download and on-demand PDF generation for a report."""
     try:
@@ -126,46 +172,9 @@ def _render_research_workspace(
         )
         source = ResearchSource.parse(source_label or ResearchSource.INTERNET.label)
         if source is ResearchSource.LOCAL:
-            uploaded_files = st.file_uploader(
-                "Session knowledge",
-                type=["txt", "md", "csv", "json", "yaml", "yml", "zip"],
-                accept_multiple_files=True,
-                disabled=st.session_state.run_in_progress,
-                help=(
-                    "Upload supported files or a ZIP folder. Files are private to "
-                    "this session and deleted when the session expires."
-                ),
-                key="session-knowledge-upload",
-            )
-            if uploaded_files:
-                upload_result = save_session_knowledge(
-                    st.session_state.session_id,
-                    uploaded_files,
-                )
-                if upload_result.accepted_files:
-                    st.success(
-                        f"Added {upload_result.accepted_files} session knowledge "
-                        "file(s)."
-                    )
-                if upload_result.rejected_files:
-                    st.warning(
-                        "Rejected upload(s): "
-                        + ", ".join(upload_result.rejected_files)
-                        + ". Use supported text formats or a safe ZIP folder."
-                    )
-            local_status = inspect_local_knowledge(knowledge_dir)
-            if local_status.is_ready:
-                st.success(
-                    f"Session knowledge is ready: {local_status.usable_file_count} "
-                    "usable file(s). This run will stay local and will not access "
-                    "the internet."
-                )
-            else:
-                st.warning(
-                    "Upload supported session knowledge before running local "
-                    "research."
-                )
+            local_status = _render_session_knowledge(knowledge_dir)
         else:
+            local_status = inspect_local_knowledge(knowledge_dir)
             st.caption(
                 "Uses public internet sources and does not read local "
                 "knowledge files."
@@ -213,46 +222,9 @@ def _render_executive_workspace(
         )
         source = ResearchSource.parse(source_label or ResearchSource.LOCAL.label)
         if source is ResearchSource.LOCAL:
-            uploaded_files = st.file_uploader(
-                "Session knowledge",
-                type=["txt", "md", "csv", "json", "yaml", "yml", "zip"],
-                accept_multiple_files=True,
-                disabled=st.session_state.run_in_progress,
-                help=(
-                    "Upload supported files or a ZIP folder. Files are private to "
-                    "this session and deleted when the session expires."
-                ),
-                key="executive-session-knowledge-upload",
-            )
-            if uploaded_files:
-                upload_result = save_session_knowledge(
-                    st.session_state.session_id,
-                    uploaded_files,
-                )
-                if upload_result.accepted_files:
-                    st.success(
-                        f"Added {upload_result.accepted_files} session knowledge "
-                        "file(s)."
-                    )
-                if upload_result.rejected_files:
-                    st.warning(
-                        "Rejected upload(s): "
-                        + ", ".join(upload_result.rejected_files)
-                        + ". Use supported text formats or a safe ZIP folder."
-                    )
-            local_status = inspect_local_knowledge(knowledge_dir)
-            if local_status.is_ready:
-                st.success(
-                    f"Session knowledge is ready: {local_status.usable_file_count} "
-                    "usable file(s). This briefing will stay local and will not "
-                    "access the internet."
-                )
-            else:
-                st.warning(
-                    "Upload supported session knowledge before preparing a local "
-                    "executive brief."
-                )
+            local_status = _render_session_knowledge(knowledge_dir)
         else:
+            local_status = inspect_local_knowledge(knowledge_dir)
             st.caption(
                 "Uses public internet sources and does not read local Peshiko "
                 "knowledge files."
