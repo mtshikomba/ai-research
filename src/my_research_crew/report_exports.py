@@ -11,9 +11,14 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from my_research_crew.report_storage import PROJECT_ROOT, REPORTS_DIRECTORY
+
+PDF_FONT_NAME = "STSong-Light"
+pdfmetrics.registerFont(UnicodeCIDFont(PDF_FONT_NAME))
 
 
 def _read_report(report_path: Path, project_root: Path | None = None) -> str:
@@ -64,6 +69,7 @@ def pdf_download(report_path: Path, project_root: Path | None = None) -> bytes:
     body_style = ParagraphStyle(
         "ReportBody",
         parent=styles["BodyText"],
+        fontName=PDF_FONT_NAME,
         alignment=TA_LEFT,
         leading=14,
         spaceAfter=8,
@@ -71,6 +77,7 @@ def pdf_download(report_path: Path, project_root: Path | None = None) -> bytes:
     heading_style = ParagraphStyle(
         "ReportHeading",
         parent=styles["Heading2"],
+        fontName=PDF_FONT_NAME,
         leading=18,
         spaceBefore=8,
         spaceAfter=8,
