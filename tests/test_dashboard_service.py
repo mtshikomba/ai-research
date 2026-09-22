@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+from threading import Event
 from types import SimpleNamespace
 import unittest
 import zipfile
@@ -29,6 +30,12 @@ from my_research_crew.dashboard_service import (
     session_knowledge_dir,
     session_has_expired,
 )
+from my_research_crew.execution_service import (
+    RunState,
+    request_cancellation,
+    snapshot_run,
+    start_run,
+)
 from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
 from my_research_crew.report_storage import (
     PROJECT_ROOT,
@@ -50,6 +57,123 @@ from my_research_crew.research_sources import (
 
 class DashboardServiceTests(unittest.TestCase):
     """Verify dashboard settings and CrewAI execution delegation."""
+
+    def test_execution_service_supports_cooperative_cancellation(self) -> None:
+        """A background operation can observe the cancellation request."""
+
+        def operation(cancellation_requested):
+            started_event.set()
+            while not cancellation_requested.is_set():
+                cancellation_requested.wait(0.01)
+            return "ignored result"
+
+        started_event = Event()
+        handle = start_run(operation)
+        started_event.wait(1)
+        self.assertEqual(snapshot_run(handle).state, RunState.RUNNING)
+        request_cancellation(handle)
+        self.assertEqual(handle.state, RunState.CANCELLATION_REQUESTED)
+        handle.future.result(timeout=1)
+        self.assertEqual(snapshot_run(handle).state, RunState.CANCELLED)
+
+    def test_execution_service_prefers_completion_when_no_cancel_was_requested(
+        self,
+    ) -> None:
+        """A completed operation resolves to completed exactly once."""
+        handle = start_run(lambda cancellation_requested: "completed")
+        handle.future.result(timeout=1)
+        snapshot = snapshot_run(handle)
+
+        self.assertEqual(snapshot.state, RunState.COMPLETED)
+        self.assertEqual(snapshot.result, "completed")
+
+    def test_run_crew_rejects_cancellation_before_starting_provider_work(self) -> None:
+        """A cancelled Research run does not create a crew or report."""
+        cancellation_requested = Event()
+        cancellation_requested.set()
+        with patch("my_research_crew.dashboard_service._create_crew") as create_crew:
+            with self.assertRaisesRegex(RuntimeError, "cancellation"):
+                run_crew(
+                    "topic",
+                    "model",
+                    cancellation_requested=cancellation_requested,
+                )
+
+        create_crew.assert_not_called()
+
+    def test_run_crew_discards_provider_output_after_cancellation(self) -> None:
+        """A cancellation requested during kickoff prevents result publication."""
+        cancellation_requested = Event()
+        crew = MagicMock()
+
+        def kickoff(**_kwargs):
+            cancellation_requested.set()
+            return "late output"
+
+        crew.kickoff.side_effect = kickoff
+        with (
+            patch("my_research_crew.dashboard_service.create_report_path"),
+            patch("my_research_crew.dashboard_service._create_crew", return_value=crew),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "cancellation"):
+                run_crew(
+                    "topic",
+                    "model",
+                    cancellation_requested=cancellation_requested,
+                )
+
+    def test_run_executive_crew_rejects_cancellation_before_starting_provider_work(
+        self,
+    ) -> None:
+        """A cancelled Executive briefing does not create a crew or report."""
+        cancellation_requested = Event()
+        cancellation_requested.set()
+        with patch(
+            "my_research_crew.peshiko_crew.PeshikoInvestmentsCrew"
+        ) as executive_crew:
+            with self.assertRaisesRegex(RuntimeError, "cancellation"):
+                run_executive_crew(
+                    "Should we expand?",
+                    "Context",
+                    "model",
+                    cancellation_requested=cancellation_requested,
+                )
+
+        executive_crew.assert_not_called()
+
+    def test_dashboard_shows_stop_for_an_active_background_run(self) -> None:
+        """Active Research runs expose Stop and lock the workspace selector."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        started_event = Event()
+
+        def blocking_operation(cancellation_requested):
+            started_event.set()
+            cancellation_requested.wait()
+            return "not rendered"
+
+        handle = start_run(blocking_operation)
+        started_event.wait(1)
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30)
+            app.session_state["active_run"] = handle
+            app.session_state["active_run_kind"] = "research"
+            if "last_research_result" in app.session_state:
+                del app.session_state["last_research_result"]
+            app.run()
+
+        try:
+            self.assertFalse(app.exception)
+            self.assertTrue(
+                any("Running research" in item.value for item in app.warning)
+            )
+            self.assertEqual(app.button[0].label, "Stop")
+            self.assertTrue(app.segmented_control[0].disabled)
+        finally:
+            request_cancellation(handle)
+            handle.future.result(timeout=2)
 
     def test_report_downloads_read_contained_markdown_and_generate_pdf(self) -> None:
         """Report exports preserve content and produce valid in-memory PDF bytes."""

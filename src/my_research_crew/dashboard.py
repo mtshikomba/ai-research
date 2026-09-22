@@ -36,6 +36,12 @@ from my_research_crew.report_exports import (
     pdf_download,
     report_download_filename,
 )
+from my_research_crew.execution_service import (
+    RunState,
+    request_cancellation,
+    snapshot_run,
+    start_run,
+)
 
 
 def _display_result(result: Any) -> None:
@@ -187,10 +193,97 @@ def _render_executive_result(run_result: Any, model: str | None) -> None:
         st.caption(f"Saved report: {run_result.report_path}")
 
 
+@st.fragment(run_every=1)
+def _render_active_run() -> None:
+    """Poll and render the current background run with a responsive Stop action."""
+    handle = st.session_state.get("active_run")
+    if handle is None:
+        return
+    snapshot = snapshot_run(handle)
+    if snapshot.state is RunState.RUNNING:
+        st.warning(f"Running {st.session_state.active_run_kind}...")
+        if st.button("Stop", key="stop-active-run", type="secondary"):
+            request_cancellation(handle)
+            st.rerun()
+        return
+    if snapshot.state is RunState.CANCELLATION_REQUESTED:
+        st.warning(
+            "Stopping... waiting for the active operation to reach a safe boundary."
+        )
+        return
+
+    st.session_state.pop("active_run", None)
+    if snapshot.state is RunState.CANCELLED:
+        st.info("Run stopped. No completed result was created.")
+    elif snapshot.state is RunState.FAILED:
+        st.error(get_safe_error_message(snapshot.error or Exception("run failed")))
+    elif snapshot.state is RunState.COMPLETED:
+        result_key = (
+            "last_research_result"
+            if st.session_state.active_run_kind == "research"
+            else "last_executive_result"
+        )
+        model_key = (
+            "last_research_model"
+            if st.session_state.active_run_kind == "research"
+            else "last_executive_model"
+        )
+        st.session_state[result_key] = snapshot.result
+        st.session_state[model_key] = st.session_state.get("active_run_model")
+    st.session_state.pop("active_run_kind", None)
+    st.session_state.pop("active_run_model", None)
+    st.rerun()
+
+
+def _start_research_run(
+    topic: str,
+    model: str | None,
+    source: ResearchSource,
+    knowledge_dir: Path,
+) -> None:
+    """Start Research in the session-owned background executor."""
+    st.session_state["active_run_kind"] = "research"
+    st.session_state["active_run_model"] = model
+    st.session_state["active_run"] = start_run(
+        lambda cancellation_requested: run_crew(
+            topic,
+            model or "",
+            source,
+            knowledge_dir=knowledge_dir,
+            cancellation_requested=cancellation_requested,
+        )
+    )
+
+
+def _start_executive_run(
+    question: str,
+    context: str,
+    model: str | None,
+    source: ResearchSource,
+    knowledge_dir: Path,
+) -> None:
+    """Start Executive briefing in the session-owned background executor."""
+    st.session_state["active_run_kind"] = "executive briefing"
+    st.session_state["active_run_model"] = model
+    st.session_state["active_run"] = start_run(
+        lambda cancellation_requested: run_executive_crew(
+            question,
+            context,
+            model or "",
+            source,
+            knowledge_dir=knowledge_dir,
+            cancellation_requested=cancellation_requested,
+        )
+    )
+
+
 def _render_research_workspace(
     available_models: list[str], selected_default: str, knowledge_dir: Path
 ) -> None:
     """Render the existing research workflow."""
+    if st.session_state.get("active_run"):
+        _render_active_run()
+        return
     st.title("My Research Crew")
     st.caption("A focused research workspace for your local Ollama models")
     _render_model_summary(available_models, "Local research workflow")
@@ -234,8 +327,12 @@ def _render_research_workspace(
             )
 
     if submitted:
-        st.session_state.pop("last_research_result", None)
-        _run_research(topic, model, source, knowledge_dir)
+        if not topic.strip():
+            st.warning("Enter a topic before starting the crew.")
+        else:
+            st.session_state.pop("last_research_result", None)
+            _start_research_run(topic, model, source, knowledge_dir)
+            st.rerun()
     if st.session_state.get("last_research_result"):
         _render_research_result(
             st.session_state["last_research_result"],
@@ -247,6 +344,9 @@ def _render_executive_workspace(
     available_models: list[str], selected_default: str, knowledge_dir: Path
 ) -> None:
     """Render the Peshiko Investments Group executive briefing workflow."""
+    if st.session_state.get("active_run"):
+        _render_active_run()
+        return
     st.title("Peshiko Investments Group")
     st.caption("Executive briefing workspace")
     _render_model_summary(available_models, "CEO-led executive assessment")
@@ -300,8 +400,12 @@ def _render_executive_workspace(
             )
 
     if submitted:
-        st.session_state.pop("last_executive_result", None)
-        _run_executive_brief(question, context, model, source, knowledge_dir)
+        if not question.strip():
+            st.warning("Enter an executive question before starting the briefing.")
+        else:
+            st.session_state.pop("last_executive_result", None)
+            _start_executive_run(question, context, model, source, knowledge_dir)
+            st.rerun()
     if st.session_state.get("last_executive_result"):
         _render_executive_result(
             st.session_state["last_executive_result"],
@@ -434,7 +538,10 @@ def main() -> None:
         ["Research", "Executive briefing"],
         default="Research",
         key="workspace",
-        disabled=st.session_state.run_in_progress,
+        disabled=(
+            st.session_state.run_in_progress
+            or st.session_state.get("active_run") is not None
+        ),
         required=True,
     )
     if available_models and selected_default != DEFAULT_OLLAMA_MODEL:
