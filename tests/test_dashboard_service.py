@@ -47,6 +47,11 @@ from my_research_crew.report_exports import (
     pdf_download,
     report_download_filename,
 )
+from my_research_crew.dashboard import (
+    DEFAULT_EXECUTIVE_WORKSPACE_NAME,
+    DEFAULT_RESEARCH_WORKSPACE_NAME,
+    workspace_name,
+)
 from my_research_crew.crew import MyResearchCrew
 from my_research_crew.research_sources import (
     LocalKnowledgeError,
@@ -57,6 +62,44 @@ from my_research_crew.research_sources import (
 
 class DashboardServiceTests(unittest.TestCase):
     """Verify dashboard settings and CrewAI execution delegation."""
+
+    def test_workspace_name_uses_independent_defaults_and_normalizes_values(
+        self,
+    ) -> None:
+        """Each workspace falls back independently and trims custom names."""
+        self.assertEqual(
+            workspace_name(None, DEFAULT_RESEARCH_WORKSPACE_NAME), "Research Crew"
+        )
+        self.assertEqual(
+            workspace_name("  Custom Research  ", DEFAULT_RESEARCH_WORKSPACE_NAME),
+            "Custom Research",
+        )
+        self.assertEqual(
+            workspace_name("   ", DEFAULT_EXECUTIVE_WORKSPACE_NAME),
+            "Executive Briefing",
+        )
+        self.assertEqual(
+            workspace_name(123, DEFAULT_EXECUTIVE_WORKSPACE_NAME),
+            "Executive Briefing",
+        )
+
+    def test_dashboard_preserves_independent_workspace_names(self) -> None:
+        """Customized workspace names remain separate while switching views."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.session_state["research-workspace-name"] = "Research Lab"
+            app.session_state["executive-workspace-name"] = "Strategy Office"
+            app.run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.title[0].value, "Research Lab")
+        app.segmented_control[0].set_value("Executive briefing").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.title[0].value, "Strategy Office")
 
     def test_execution_service_supports_cooperative_cancellation(self) -> None:
         """A background operation can observe the cancellation request."""
@@ -735,7 +778,7 @@ class DashboardServiceTests(unittest.TestCase):
             app = AppTest.from_file(app_path, default_timeout=30).run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(app.title[0].value, "My Research Crew")
+        self.assertEqual(app.title[0].value, "Research Crew")
         self.assertEqual(app.segmented_control[1].label, "Research source")
         self.assertEqual(app.segmented_control[1].value, "Internet")
         self.assertEqual(app.selectbox[0].value, "gpt-oss:120b-cloud")
@@ -793,7 +836,7 @@ class DashboardServiceTests(unittest.TestCase):
             app.segmented_control[0].set_value("Executive briefing").run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(app.title[0].value, "Peshiko Investments Group")
+        self.assertEqual(app.title[0].value, "Executive Briefing")
         self.assertEqual(app.text_area[0].label, "Executive question")
         self.assertEqual(app.text_area[1].label, "Business context (optional)")
         self.assertEqual(app.button[0].label, "Prepare executive brief")
