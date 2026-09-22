@@ -5,7 +5,6 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
-import shutil
 from types import SimpleNamespace
 import unittest
 import zipfile
@@ -59,13 +58,19 @@ class DashboardServiceTests(unittest.TestCase):
             report_path = project_root / "reports" / "research-run" / "report.md"
             report_path.parent.mkdir(parents=True)
             report_path.write_text(
-                "# Quarterly report\n\nPrivate findings.", encoding="utf-8"
+                "# Quarterly report\n\nPrivate findings: 6G – resilient café.",
+                encoding="utf-8",
             )
 
             markdown_bytes = markdown_download(report_path, project_root)
             pdf_bytes = pdf_download(report_path, project_root)
 
-            self.assertEqual(markdown_bytes, b"# Quarterly report\n\nPrivate findings.")
+            self.assertEqual(
+                markdown_bytes,
+                "# Quarterly report\n\nPrivate findings: 6G – resilient café.".encode(
+                    "utf-8"
+                ),
+            )
             self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
             self.assertGreater(len(pdf_bytes), 100)
             self.assertEqual(
@@ -650,7 +655,8 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertEqual(app.download_button[0].label, "Download Markdown")
             self.assertEqual(app.button[-1].label, "Generate PDF")
         finally:
-            shutil.rmtree(report_directory, ignore_errors=True)
+            report_path.unlink(missing_ok=True)
+            report_directory.rmdir()
 
     def test_dashboard_shows_peshiko_executive_workspace(self) -> None:
         """The executive workspace exposes labeled Peshiko briefing inputs."""
