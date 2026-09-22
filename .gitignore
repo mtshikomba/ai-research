@@ -3,3 +3,4 @@ reports/
 knowledge/
 __pycache__/
 .DS_Store
+landing/config.js

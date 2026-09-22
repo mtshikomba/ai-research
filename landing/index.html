@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI Research is a local-first workspace for research and executive briefings.">
+  <title>AI Research | Local-first research workspace</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="AI Research home">AI Research</a>
+    <nav aria-label="Primary navigation">
+      <a href="#workflows">Workflows</a>
+      <a href="#features">Features</a>
+      <a class="nav-cta" data-dashboard-link href="#dashboard">Open dashboard</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Local-first research workspace</p>
+        <h1 id="hero-title">Turn questions and company context into useful briefs.</h1>
+        <p class="hero-lede">AI Research brings focused web research, session knowledge, and executive synthesis into one Ollama-powered workspace.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" data-dashboard-link href="#dashboard">Open dashboard <span aria-hidden="true">&#8594;</span></a>
+          <a class="text-link" href="#workflows">See how it works</a>
+        </div>
+        <p class="cta-status" data-dashboard-status role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="hero-visual" aria-label="A visual preview of research and executive briefing workflows">
+        <div class="visual-topline"><span class="status-dot"></span> Workspace ready</div>
+        <div class="visual-grid">
+          <div class="workflow-card research-card">
+            <span class="card-kicker">01 / Research</span>
+            <strong>Explore a question</strong>
+            <span>Internet or session knowledge</span>
+          </div>
+          <div class="workflow-card executive-card">
+            <span class="card-kicker">02 / Briefing</span>
+            <strong>Shape a decision</strong>
+            <span>Specialist context, CEO synthesis</span>
+          </div>
+        </div>
+        <div class="visual-footer"><span>Ollama</span><span>Session-scoped</span><span>Export-ready</span></div>
+      </div>
+    </section>
+
+    <section class="workflow-section" id="workflows" aria-labelledby="workflows-title">
+      <div class="section-heading">
+        <p class="eyebrow">Two focused workspaces</p>
+        <h2 id="workflows-title">Choose the shape of work you need.</h2>
+      </div>
+      <div class="workflow-list">
+        <article class="workflow-row">
+          <span class="row-number">01</span>
+          <div>
+            <h3>Research Crew</h3>
+            <p>Investigate a topic with public web sources or work entirely from the knowledge uploaded to your current session.</p>
+          </div>
+          <span class="row-arrow" aria-hidden="true">&#8599;</span>
+        </article>
+        <article class="workflow-row">
+          <span class="row-number">02</span>
+          <div>
+            <h3>Executive Briefing</h3>
+            <p>Bring a business question and context to a CEO-led briefing with CFO, COO, and CIO assessments.</p>
+          </div>
+          <span class="row-arrow" aria-hidden="true">&#8599;</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="feature-section" id="features" aria-labelledby="features-title">
+      <div class="section-heading compact-heading">
+        <p class="eyebrow">Built for a clean handoff</p>
+        <h2 id="features-title">From source to shareable report.</h2>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-index">A</span><h3>Source clarity</h3><p>Keep Internet research separate from Local knowledge runs so the evidence boundary stays clear.</p></article>
+        <article class="feature-card"><span class="feature-index">B</span><h3>Session knowledge</h3><p>Upload supported files or ZIP folders once and use the same temporary collection in both workspaces.</p></article>
+        <article class="feature-card"><span class="feature-index">C</span><h3>Report exports</h3><p>Download the completed Markdown source or generate a PDF on demand when the report is ready.</p></article>
+        <article class="feature-card"><span class="feature-index">D</span><h3>Cooperative stop</h3><p>Stop an active run at a safe execution boundary without publishing a late result as completed.</p></article>
+      </div>
+    </section>
+
+    <section class="final-cta" id="dashboard" aria-labelledby="cta-title">
+      <div>
+        <p class="eyebrow">Ready when you are</p>
+        <h2 id="cta-title">Start with a question worth answering.</h2>
+      </div>
+      <a class="button button-primary" data-dashboard-link href="#dashboard">Open dashboard <span aria-hidden="true">&#8594;</span></a>
+      <p class="cta-status" data-dashboard-status role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>AI Research</span>
+    <span>Local-first research and executive briefings</span>
+    <a href="https://github.com/mtshikomba/ai-research">Repository</a>
+  </footer>
+
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      var config = window.AI_RESEARCH_CONFIG || {};
+      var dashboardUrl = typeof config.dashboardUrl === "string" ? config.dashboardUrl.trim() : "";
+      var validDashboardUrl = /^https?:\/\/[^\s]+$/i.test(dashboardUrl);
+      var links = document.querySelectorAll("[data-dashboard-link]");
+      var statuses = document.querySelectorAll("[data-dashboard-status]");
+      links.forEach(function (link) {
+        if (validDashboardUrl) {
+          link.href = dashboardUrl;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        } else {
+          link.removeAttribute("href");
+          link.setAttribute("aria-disabled", "true");
+          link.classList.add("is-unavailable");
+        }
+      });
+      if (!validDashboardUrl) {
+        statuses.forEach(function (status) {
+          status.textContent = "Dashboard access is not configured for this deployment.";
+        });
+      }
+    }());
+  </script>
+</body>
+</html>
