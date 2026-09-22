@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+from threading import Event
 from typing import Any
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -23,6 +24,13 @@ from my_research_crew.research_sources import (
     prepare_local_knowledge,
 )
 from my_research_crew.report_storage import PROJECT_ROOT, create_report_path
+
+
+def _raise_if_cancelled(cancellation_requested: Event | None) -> None:
+    """Stop a run at a safe boundary when cancellation was requested."""
+    if cancellation_requested is not None and cancellation_requested.is_set():
+        raise RuntimeError("Run cancellation requested.")
+
 
 DEFAULT_OLLAMA_MODEL = "gpt-oss:120b-cloud"
 DEFAULT_OLLAMA_API_BASE = "http://192.168.1.153:11434"
@@ -301,6 +309,7 @@ def run_crew(
     source: ResearchSource | str = ResearchSource.INTERNET,
     *,
     knowledge_dir: Path | None = None,
+    cancellation_requested: Event | None = None,
 ) -> CrewRunResult:
     """Run the configured CrewAI crew for a dashboard topic.
 
@@ -309,6 +318,7 @@ def run_crew(
         model: Ollama model selected for this run.
         source: Mutually exclusive Internet or Local knowledge source.
         knowledge_dir: Explicit local knowledge directory for local runs.
+        cancellation_requested: Cooperative cancellation event for background runs.
 
     Returns:
         The CrewAI output and path of its saved report.
@@ -325,6 +335,7 @@ def run_crew(
     if not normalized_model:
         raise ValueError("Select an Ollama model before starting the crew.")
     selected_source = ResearchSource.parse(source)
+    _raise_if_cancelled(cancellation_requested)
 
     report_path = create_report_path(normalized_topic)
     if selected_source is ResearchSource.LOCAL:
@@ -347,6 +358,7 @@ def run_crew(
             "source_context": source_context,
         }
     )
+    _raise_if_cancelled(cancellation_requested)
     return CrewRunResult(
         output=output,
         report_path=report_path,
@@ -361,6 +373,7 @@ def run_executive_crew(
     source: ResearchSource | str = ResearchSource.LOCAL,
     *,
     knowledge_dir: Path | None = None,
+    cancellation_requested: Event | None = None,
 ) -> ExecutiveRunResult:
     """Run a CEO-led Peshiko executive briefing.
 
@@ -371,6 +384,7 @@ def run_executive_crew(
         source: Evidence source selected for the briefing, either Internet or
             Local knowledge.
         knowledge_dir: Explicit local knowledge directory for local briefings.
+        cancellation_requested: Cooperative cancellation event for background runs.
 
     Returns:
         The executive brief and its saved report path.
@@ -385,6 +399,7 @@ def run_executive_crew(
         raise ValueError("Enter an executive question before starting the briefing.")
     if not selected_model:
         raise ValueError("Select an Ollama model before starting the briefing.")
+    _raise_if_cancelled(cancellation_requested)
 
     report_path = create_report_path(f"peshiko-executive-{question}")
     from my_research_crew.peshiko_crew import PeshikoInvestmentsCrew
@@ -409,6 +424,7 @@ def run_executive_crew(
             "Internet research was selected for this briefing; local knowledge "
             "was not consulted."
         )
+    _raise_if_cancelled(cancellation_requested)
 
     effective_context = business_context.strip() or "No additional context provided."
     effective_context = f"{source_context}\n\n{effective_context}"
@@ -427,6 +443,7 @@ def run_executive_crew(
             }
         )
     )
+    _raise_if_cancelled(cancellation_requested)
     return ExecutiveRunResult(
         output=output,
         report_path=report_path,
