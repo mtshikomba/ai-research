@@ -1,128 +1,99 @@
-# My Research Crew
+# AI Research
 
-Welcome to the My Research Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+AI Research is a local-first Streamlit dashboard for internet research and
+executive briefings. It uses Ollama for model execution and keeps uploaded
+session knowledge isolated from the shared project files.
 
-## Installation
+## Requirements
 
-Ensure you have Python >=3.10 <3.13 installed; Python 3.12 is recommended on
-Intel macOS. This project uses [UV](https://docs.astral.sh/uv/) for dependency
-management and package handling.
+- Python `>=3.10,<3.13` (Python 3.12 is recommended)
+- [UV](https://docs.astral.sh/uv/)
+- A reachable Ollama server and at least one available model
 
-First, if you haven't already, install uv:
+## Setup
 
-```bash
-pip install uv
-```
-
-Next, navigate to the project directory, create the supported environment, and
-install the locked dependencies:
+From the repository root:
 
 ```bash
 uv venv --python 3.12 .venv
 uv sync --system-certs
 ```
 
-`--system-certs` lets UV use the macOS trust store when downloading dependencies.
-
-### Customizing
-
-**Configure your local Ollama server in the `.env` file**
+Configure the Ollama connection in `.env` or the environment:
 
 ```dotenv
 MODEL=ollama/llama3.1:latest
 API_BASE=http://192.168.1.153:11434
 ```
 
-Start Ollama on the configured server and make the model available before
-running the crew. For example:
+Start Ollama and make the configured model available before launching the
+dashboard.
 
-```bash
-ollama pull llama3.1
-ollama serve
-```
-
-- Modify `src/my_research_crew/config/agents.yaml` to define your agents
-- Modify `src/my_research_crew/config/tasks.yaml` to define your tasks
-- Modify `src/my_research_crew/crew.py` to add your own logic, tools and specific args
-- Modify `src/my_research_crew/main.py` to add custom inputs for your agents and tasks
-
-## Running the Project
-
-To kickstart your crew of AI agents and begin task execution, run this from the root folder of your project:
-
-```bash
-$ crewai run
-```
-
-This command initializes the my_research_crew Crew, assembling the agents and assigning them tasks as defined in your configuration.
-
-Each research run saves its `report.md` beneath a unique
-`reports/<timestamp>-<topic>/` directory. The `reports/` directory is ignored by Git.
-
-## Streamlit Dashboard
-
-Install the project dependencies, ensure the configured Ollama server is
-reachable, then launch the dashboard from the repository root:
+## Dashboard
 
 ```bash
 streamlit run src/my_research_crew/dashboard.py
 ```
 
-The dashboard loads available models from the configured Ollama server. It
-prefers `gpt-oss:120b-cloud` when available; otherwise it uses `MODEL` from
-`.env` or the environment. The default endpoint is
-`http://192.168.1.153:11434`.
+The dashboard loads the available Ollama models and prefers
+`gpt-oss:120b-cloud` when it is available. Otherwise, it uses the configured
+`MODEL` value or the first available model.
 
-### Research sources
+### Research workspace
 
-The Research workspace defaults to `Internet`. Use the `Research source`
-control to select exactly one source for each run:
+The Research workspace supports two mutually exclusive sources:
 
-- `Internet` searches public web sources and does not read files under
-	`knowledge/`.
-- `Local knowledge` reads only supported `.txt`, `.md`, `.csv`, `.json`,
-	`.yaml`, and `.yml` files under `knowledge/` and does not access the internet.
+- **Internet** searches public web sources and does not read session knowledge.
+- **Local knowledge** reads only the current session's uploaded knowledge and
+  does not access the internet.
 
-Local ZIP archives are validated and extracted beneath
-`knowledge/.extracted/` before their supported files are read. Unsafe,
-encrypted, corrupt, or oversized archives are rejected. Local mode does not
-fall back to internet research when usable local data is unavailable. The
-entire `knowledge/` directory remains ignored by Git.
+### Executive Briefing workspace
 
-## Peshiko Executive Briefing
+The Executive Briefing workspace accepts an executive question and optional
+business context. It produces a CEO-led briefing with specialist CFO, COO, and
+CIO assessments. Its Local knowledge mode uses the same current-session
+knowledge collection as Research.
 
-Select `Executive briefing` in the dashboard to ask Peshiko Investments Group's
-executive crew a business question. The CFO, COO, and CIO provide specialist
-assessments before the CEO produces the final advisory brief. Supply only
-non-sensitive business context; the crew does not access company systems or
-initiate transactions.
+## Session Knowledge
 
-For local-only company materials, keep the investment dossier under
-`knowledge/peshiko/` with subfolders for business data, historical documents,
-report templates, and brand assets. The Peshiko crew should always check this
-local store first, including any archived business or historical data that has
-been extracted into the folder. Internet research is only a fallback when the
-local `knowledge/peshiko/` materials do not contain the relevant facts,
-archives, or templates needed for the task. The CEO should apply the local
-`knowledge/peshiko/letterhead/` branding and the matching template from
-`knowledge/peshiko/report-templates/` when preparing a PDF executive report.
-The entire `knowledge/` tree is intentionally ignored by Git and should never be
-committed.
+Upload supported `.txt`, `.md`, `.csv`, `.json`, `.yaml`, `.yml`, or ZIP files
+from either workspace. The collection is shared between Research and Executive
+Briefing for the current browser session, but it is not shared with other
+sessions or the project knowledge directory.
 
-## Reusing this workflow in another repo
+Individual files are limited to 2 MB and ZIP uploads to 50 MB. ZIP archives
+are checked for unsafe paths, links, encryption, corruption, excessive file
+counts, and excessive uncompressed size. Uploaded session knowledge is deleted
+when the 10-minute session expires.
 
-The project now includes a generic `ProjectContext` discovery layer in `src/my_research_crew/project_context.py` that detects the target repository’s language, default branch, and validation commands. This allows the same backlog, branch, and validation workflow to be reused in other source-code projects instead of assuming a single fixed project layout.
+## Reports
 
-## Understanding Your Crew
+Completed reports are stored as `report.md` under a unique directory in
+`reports/`.
 
-The my_research_crew Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+After a successful run, the dashboard provides:
 
-## Support
+- Markdown download containing the report's UTF-8 source
+- On-demand PDF generation and download
 
-For support, questions, or feedback regarding the My Research Crew or crewAI.
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
+PDF generation occurs only when requested. PDF output is generated in memory
+and is not stored as a second permanent report artifact.
 
-Let's create wonders together with the power and simplicity of crewAI.
+## Active Runs
+
+Research and Executive Briefing runs execute in the background. While a run is
+active, conflicting controls are disabled and a **Stop** action is available.
+
+Stopping is cooperative: the request is handled at safe execution boundaries,
+and a result received after cancellation is not published as a completed report.
+
+## Workspace Names
+
+The two workspace names can be customized independently from the sidebar:
+
+- Research default: `Research Crew`
+- Executive default: `Executive Briefing`
+
+Leave either field blank to restore its default. Names are session-scoped and
+do not rename the underlying Python classes, report directories, or source
+identifiers.
