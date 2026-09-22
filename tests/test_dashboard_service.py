@@ -747,6 +747,44 @@ class DashboardServiceTests(unittest.TestCase):
         finally:
             purge_session_knowledge(session_id)
 
+    def test_session_knowledge_is_shared_between_workspaces(self) -> None:
+        """Research uploads remain ready after switching to Executive briefing."""
+        app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
+        with patch(
+            "my_research_crew.dashboard.list_ollama_models",
+            return_value=["gpt-oss:120b-cloud"],
+        ):
+            app = AppTest.from_file(app_path, default_timeout=30).run()
+            app.segmented_control[1].set_value("Local knowledge").run()
+            session_id = app.session_state["session_id"]
+            app.file_uploader[0].set_value(
+                ("shared-notes.txt", b"shared session evidence", "text/plain")
+            ).run()
+
+        try:
+            self.assertFalse(app.exception)
+            self.assertIn(
+                "shared across Research and Executive briefing", app.info[0].value
+            )
+            self.assertIn("up to 2MB", app.file_uploader[0].help)
+            self.assertIn("up to 50MB", app.file_uploader[0].help)
+            app.segmented_control[0].set_value("Executive briefing").run()
+
+            self.assertFalse(app.exception)
+            self.assertEqual(app.file_uploader[0].label, "Session knowledge")
+            self.assertTrue(
+                any("Session knowledge is ready" in item.value for item in app.success)
+            )
+            self.assertTrue(
+                any("shared-notes.txt" in item.value for item in app.caption)
+            )
+            self.assertIn(
+                "shared across Research and Executive briefing", app.info[0].value
+            )
+            self.assertFalse(app.button[0].disabled)
+        finally:
+            purge_session_knowledge(session_id)
+
     def test_dashboard_locks_research_controls_during_a_run(self) -> None:
         """The selected source and form controls remain visible but disabled."""
         app_path = PROJECT_ROOT / "src" / "my_research_crew" / "dashboard.py"
