@@ -43,6 +43,17 @@ from my_research_crew.execution_service import (
     start_run,
 )
 
+DEFAULT_RESEARCH_WORKSPACE_NAME = "Research Crew"
+DEFAULT_EXECUTIVE_WORKSPACE_NAME = "Executive Briefing"
+
+
+def workspace_name(custom_name: object, default_name: str) -> str:
+    """Normalize one session workspace name with its independent fallback."""
+    if not isinstance(custom_name, str):
+        return default_name
+    normalized_name = custom_name.strip()
+    return normalized_name or default_name
+
 
 def _display_result(result: Any) -> None:
     """Render CrewAI output without exposing internal execution details.
@@ -193,6 +204,37 @@ def _render_executive_result(run_result: Any, model: str | None) -> None:
         st.caption(f"Saved report: {run_result.report_path}")
 
 
+def _render_workspace_name_settings() -> tuple[str, str]:
+    """Render independent workspace-name settings and return display names."""
+    st.session_state.setdefault("research-workspace-name", "")
+    st.session_state.setdefault("executive-workspace-name", "")
+    with st.sidebar.expander("Workspace names"):
+        st.text_input(
+            "Research workspace name",
+            key="research-workspace-name",
+            placeholder=DEFAULT_RESEARCH_WORKSPACE_NAME,
+            help="Optional. Leave blank to use Research Crew.",
+            disabled=bool(st.session_state.get("active_run")),
+        )
+        st.text_input(
+            "Executive workspace name",
+            key="executive-workspace-name",
+            placeholder=DEFAULT_EXECUTIVE_WORKSPACE_NAME,
+            help="Optional. Leave blank to use Executive Briefing.",
+            disabled=bool(st.session_state.get("active_run")),
+        )
+    return (
+        workspace_name(
+            st.session_state.get("research-workspace-name"),
+            DEFAULT_RESEARCH_WORKSPACE_NAME,
+        ),
+        workspace_name(
+            st.session_state.get("executive-workspace-name"),
+            DEFAULT_EXECUTIVE_WORKSPACE_NAME,
+        ),
+    )
+
+
 @st.fragment(run_every=1)
 def _render_active_run() -> None:
     """Poll and render the current background run with a responsive Stop action."""
@@ -278,13 +320,16 @@ def _start_executive_run(
 
 
 def _render_research_workspace(
-    available_models: list[str], selected_default: str, knowledge_dir: Path
+    available_models: list[str],
+    selected_default: str,
+    knowledge_dir: Path,
+    workspace_name_value: str,
 ) -> None:
     """Render the existing research workflow."""
     if st.session_state.get("active_run"):
         _render_active_run()
         return
-    st.title("My Research Crew")
+    st.title(workspace_name_value)
     st.caption("A focused research workspace for your local Ollama models")
     _render_model_summary(available_models, "Local research workflow")
 
@@ -341,13 +386,16 @@ def _render_research_workspace(
 
 
 def _render_executive_workspace(
-    available_models: list[str], selected_default: str, knowledge_dir: Path
+    available_models: list[str],
+    selected_default: str,
+    knowledge_dir: Path,
+    workspace_name_value: str,
 ) -> None:
     """Render the Peshiko Investments Group executive briefing workflow."""
     if st.session_state.get("active_run"):
         _render_active_run()
         return
-    st.title("Peshiko Investments Group")
+    st.title(workspace_name_value)
     st.caption("Executive briefing workspace")
     _render_model_summary(available_models, "CEO-led executive assessment")
 
@@ -497,7 +545,7 @@ def _run_executive_brief(
 
 def main() -> None:
     """Render research and Peshiko executive workspaces."""
-    st.set_page_config(page_title="My Research Crew", page_icon="M", layout="wide")
+    st.set_page_config(page_title="Research Crew", page_icon="M", layout="wide")
     settings = get_ollama_settings()
     st.session_state.setdefault("run_in_progress", False)
     st.session_state.setdefault("session_id", f"session-{uuid.uuid4().hex[:12]}")
@@ -533,6 +581,8 @@ def main() -> None:
         elif available_models:
             st.caption("Ready")
 
+    research_name, executive_name = _render_workspace_name_settings()
+
     workspace = st.segmented_control(
         "Workspace",
         ["Research", "Executive briefing"],
@@ -548,9 +598,15 @@ def main() -> None:
         st.info(f"Using available model: {selected_default}")
 
     if workspace == "Executive briefing":
-        _render_executive_workspace(available_models, selected_default, knowledge_dir)
+        st.set_page_config(page_title=executive_name)
+        _render_executive_workspace(
+            available_models, selected_default, knowledge_dir, executive_name
+        )
     else:
-        _render_research_workspace(available_models, selected_default, knowledge_dir)
+        st.set_page_config(page_title=research_name)
+        _render_research_workspace(
+            available_models, selected_default, knowledge_dir, research_name
+        )
 
 
 if __name__ == "__main__":
