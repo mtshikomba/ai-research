@@ -1,7 +1,7 @@
 import jsonschema
 from typing import Tuple, Any
 
-# Minimal JSON Schemas for the MVP
+# JSON validation schemas for the active research workflow.
 SCHEMAS = {
     "backlog": {
         "type": "object",

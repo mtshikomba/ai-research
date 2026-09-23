@@ -1,19 +1,27 @@
 [project]
-name = "my_1st_crew"
+name = "my_research_crew"
 version = "0.1.0"
-description = "my_1st_crew using crewAI"
+description = "my_research_crew using CrewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "crewai[tools]>=0.114.0,<1.0.0"
+    "crewai[tools]==0.114.0",
+    "cryptography==44.0.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "ddgs>=9.0.0,<10.0.0",
+    "lancedb==0.25.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "onnxruntime==1.19.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "pypdfium2==4.30.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "reportlab>=4.0,<5.0",
+    "streamlit>=1.39.0,<2.0.0",
 ]
 
 [project.scripts]
-my_1st_crew = "my_1st_crew.main:run"
-run_crew = "my_1st_crew.main:run"
-train = "my_1st_crew.main:train"
-replay = "my_1st_crew.main:replay"
-test = "my_1st_crew.main:test"
+my_research_crew = "my_research_crew.main:run"
+run_crew = "my_research_crew.main:run"
+train = "my_research_crew.main:train"
+replay = "my_research_crew.main:replay"
+test = "my_research_crew.main:test"
 
 [build-system]
 requires = ["hatchling"]
@@ -21,3 +29,9 @@ build-backend = "hatchling.build"
 
 [tool.crewai]
 type = "crew"
+
+[dependency-groups]
+dev = [
+    "black>=25.0.0,<26.0.0",
+    "flake8>=7.0.0,<8.0.0",
+]

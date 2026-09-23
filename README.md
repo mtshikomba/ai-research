@@ -1,54 +1,99 @@
-# My1StCrew Crew
+# AI Research
 
-Welcome to the My1StCrew Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+AI Research is a local-first Streamlit dashboard for internet research and
+executive briefings. It uses Ollama for model execution and keeps uploaded
+session knowledge isolated from the shared project files.
 
-## Installation
+## Requirements
 
-Ensure you have Python >=3.10 <3.13 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+- Python `>=3.10,<3.13` (Python 3.12 is recommended)
+- [UV](https://docs.astral.sh/uv/)
+- A reachable Ollama server and at least one available model
 
-First, if you haven't already, install uv:
+## Setup
 
-```bash
-pip install uv
-```
-
-Next, navigate to your project directory and install the dependencies:
-
-(Optional) Lock the dependencies and install them by using the CLI command:
-```bash
-crewai install
-```
-### Customizing
-
-**Add your `OPENAI_API_KEY` into the `.env` file**
-
-- Modify `src/my_1st_crew/config/agents.yaml` to define your agents
-- Modify `src/my_1st_crew/config/tasks.yaml` to define your tasks
-- Modify `src/my_1st_crew/crew.py` to add your own logic, tools and specific args
-- Modify `src/my_1st_crew/main.py` to add custom inputs for your agents and tasks
-
-## Running the Project
-
-To kickstart your crew of AI agents and begin task execution, run this from the root folder of your project:
+From the repository root:
 
 ```bash
-$ crewai run
+uv venv --python 3.12 .venv
+uv sync --system-certs
 ```
 
-This command initializes the my_1st_crew Crew, assembling the agents and assigning them tasks as defined in your configuration.
+Configure the Ollama connection in `.env` or the environment:
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+```dotenv
+MODEL=ollama/llama3.1:latest
+API_BASE=http://192.168.1.153:11434
+```
 
-## Understanding Your Crew
+Start Ollama and make the configured model available before launching the
+dashboard.
 
-The my_1st_crew Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+## Dashboard
 
-## Support
+```bash
+streamlit run src/my_research_crew/dashboard.py
+```
 
-For support, questions, or feedback regarding the My1StCrew Crew or crewAI.
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
+The dashboard loads the available Ollama models and prefers
+`gpt-oss:120b-cloud` when it is available. Otherwise, it uses the configured
+`MODEL` value or the first available model.
 
-Let's create wonders together with the power and simplicity of crewAI.
+### Research workspace
+
+The Research workspace supports two mutually exclusive sources:
+
+- **Internet** searches public web sources and does not read session knowledge.
+- **Local knowledge** reads only the current session's uploaded knowledge and
+  does not access the internet.
+
+### Executive Briefing workspace
+
+The Executive Briefing workspace accepts an executive question and optional
+business context. It produces a CEO-led briefing with specialist CFO, COO, and
+CIO assessments. Its Local knowledge mode uses the same current-session
+knowledge collection as Research.
+
+## Session Knowledge
+
+Upload supported `.txt`, `.md`, `.csv`, `.json`, `.yaml`, `.yml`, or ZIP files
+from either workspace. The collection is shared between Research and Executive
+Briefing for the current browser session, but it is not shared with other
+sessions or the project knowledge directory.
+
+Individual files are limited to 2 MB and ZIP uploads to 50 MB. ZIP archives
+are checked for unsafe paths, links, encryption, corruption, excessive file
+counts, and excessive uncompressed size. Uploaded session knowledge is deleted
+when the 10-minute session expires.
+
+## Reports
+
+Completed reports are stored as `report.md` under a unique directory in
+`reports/`.
+
+After a successful run, the dashboard provides:
+
+- Markdown download containing the report's UTF-8 source
+- On-demand PDF generation and download
+
+PDF generation occurs only when requested. PDF output is generated in memory
+and is not stored as a second permanent report artifact.
+
+## Active Runs
+
+Research and Executive Briefing runs execute in the background. While a run is
+active, conflicting controls are disabled and a **Stop** action is available.
+
+Stopping is cooperative: the request is handled at safe execution boundaries,
+and a result received after cancellation is not published as a completed report.
+
+## Workspace Names
+
+The two workspace names can be customized independently from the sidebar:
+
+- Research default: `Research Crew`
+- Executive default: `Executive Briefing`
+
+Leave either field blank to restore its default. Names are session-scoped and
+do not rename the underlying Python classes, report directories, or source
+identifiers.

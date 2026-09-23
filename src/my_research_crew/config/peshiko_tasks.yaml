@@ -1,0 +1,68 @@
+cfo_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Local Peshiko knowledge summary: {local_knowledge_summary}
+    First review the local Peshiko knowledge directory at knowledge/peshiko for
+    any relevant business data, historical documents, or templates. Use that
+    information as the primary source. only use internet research as a fallback
+    if the local store does not contain the needed facts. Provide financial
+    considerations, risks, assumptions, and practical next steps. Do not
+    initiate transactions or represent advice as accounting fact.
+  expected_output: >
+    A concise CFO assessment with financial considerations, risks, assumptions,
+    and recommended next steps, grounded first in local Peshiko knowledge and
+    augmented by internet research only when necessary.
+  agent: cfo
+
+coo_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Local Peshiko knowledge summary: {local_knowledge_summary}
+    First review the local Peshiko knowledge directory at knowledge/peshiko for
+    relevant operational context, historical information, and company records.
+    Use that local material as the primary source. Only use internet research as
+    a fallback when the local knowledge does not provide what is needed. Provide
+    operational considerations, risks, assumptions, and practical next steps. Do
+    not initiate operational changes.
+  expected_output: >
+    A concise COO assessment with operational considerations, risks,
+    assumptions, and recommended next steps, using local Peshiko knowledge first
+    and external research only when needed.
+  agent: coo
+
+cio_assessment:
+  description: >
+    Analyze the executive question: {executive_question}
+    Business context: {business_context}
+    Local Peshiko knowledge summary: {local_knowledge_summary}
+    First review the local Peshiko knowledge directory at knowledge/peshiko for
+    data, historical context, and company records relevant to the question. Use
+    that local knowledge as the primary source. Only use internet research as a
+    fallback when the local knowledge does not contain the required facts.
+    Provide data and information considerations, risks, assumptions, and
+    practical next steps. Do not access external systems.
+  expected_output: >
+    A concise CIO assessment with data, information, and technology
+    considerations, risks, assumptions, and recommended next steps, grounded in
+    local Peshiko knowledge first and internet research only as a fallback.
+  agent: cio
+
+ceo_brief:
+  description: >
+    Using the CFO, COO, and CIO assessments, produce an executive brief for
+    Peshiko Investments Group on: {executive_question}
+    Local Peshiko knowledge summary: {local_knowledge_summary}
+    First consult the local Peshiko knowledge directory at knowledge/peshiko for
+    company facts, historical context, and templates. Only use internet research
+    when the local data is insufficient. Lead with a recommendation and next
+    steps. Then distinguish financial, operational, data/information,
+    strategic, risk, and assumptions sections. Treat the brief as advisory; do
+    not direct transactions or autonomous action.
+  expected_output: >
+    A markdown executive brief led by CEO recommendation and next steps, with
+    clearly labeled CFO, COO, CIO, strategic, risk, and assumptions sections,
+    grounded first in local Peshiko knowledge and using internet research only
+    when necessary.
+  agent: ceo
