@@ -29,6 +29,24 @@ API_BASE=http://192.168.1.153:11434
 Start Ollama and make the configured model available before launching the
 dashboard.
 
+## Production container
+
+Copy `.env.production.example` to `.env.production` and set the production
+Ollama settings, then
+create the shared proxy network once on the Docker host:
+
+```bash
+cp .env.production.example .env.production
+docker network create proxy-tier
+docker compose up -d --build
+```
+
+The dashboard is published on host port `8003` and listens on container port
+`8000`. Reports persist in the `reports_volume` volume. Session knowledge is
+stored in `sessions_volume` and is still removed according to the dashboard's
+session timeout behavior. The reverse proxy can reach the service through the
+external `proxy-tier` network.
+
 ## Dashboard
 
 ```bash

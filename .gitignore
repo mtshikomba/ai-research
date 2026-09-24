@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.production.example
 reports/
 knowledge/
 __pycache__/
