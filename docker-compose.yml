@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: my-research-crew-web
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "8003:8000"
+    volumes:
+      - reports_volume:/app/reports
+      - sessions_volume:/app/sessions
+    networks:
+      - app-network
+      - proxy-tier
+
+volumes:
+  reports_volume:
+  sessions_volume:
+
+networks:
+  app-network:
+    driver: bridge
+  proxy-tier:
+    external: true
+    name: proxy-tier
