@@ -41,10 +41,12 @@ docker network create proxy-tier
 docker compose up -d --build
 ```
 
-The dashboard is published on host port `8003` and listens on container port
-`8000`. Reports persist in the `reports_volume` volume. Session knowledge is
-stored in `sessions_volume` and is still removed according to the dashboard's
-session timeout behavior. The reverse proxy can reach the service through the
+The landing page is published on host port `8004`, and the dashboard is
+published on host port `8003`. Both containers use the same image; the landing
+server listens on container port `8080`, while Streamlit listens on `8000`.
+Reports persist in the `reports_volume` volume. Session knowledge is stored in
+`sessions_volume` and is still removed according to the dashboard's session
+timeout behavior. The reverse proxy can reach both services through the
 external `proxy-tier` network.
 
 ## Dashboard

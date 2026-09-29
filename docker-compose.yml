@@ -1,5 +1,6 @@
 services:
-  web:
+  research-web:
+    image: my-research-crew:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,6 +13,31 @@ services:
     volumes:
       - reports_volume:/app/reports
       - sessions_volume:/app/sessions
+    networks:
+      - app-network
+      - proxy-tier
+
+  research-landing:
+    image: my-research-crew:latest
+    container_name: my-research-crew-landing
+    restart: unless-stopped
+    depends_on:
+      research-web:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        printf 'window.AI_RESEARCH_CONFIG = { dashboardUrl: "%s" };\n' "$${DASHBOARD_URL:-http://localhost:8003/}" > /app/landing/config.js
+        exec python -m http.server 8080 --directory /app/landing
+    ports:
+      - "8004:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     networks:
       - app-network
       - proxy-tier
