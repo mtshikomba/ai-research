@@ -1,5 +1,6 @@
 services:
-  web:
+  research-web:
+    image: my-research-crew:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,6 +13,49 @@ services:
     volumes:
       - reports_volume:/app/reports
       - sessions_volume:/app/sessions
+    networks:
+      - app-network
+      - proxy-tier
+
+  research-landing:
+    image: my-research-crew:latest
+    container_name: my-research-crew-landing
+    restart: unless-stopped
+    depends_on:
+      research-web:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        CONFIG_FILE=/app/landing/config.js
+        URL_FROM_CONFIG=$$(python - <<'PY'
+        import pathlib
+        import re
+
+        path = pathlib.Path('/app/landing/config.js')
+        text = path.read_text(encoding='utf-8') if path.exists() else ''
+        match = re.search(r'dashboardUrl\s*:\s*["\']([^"\']+)["\']', text)
+        print(match.group(1) if match else '')
+        PY
+        )
+        if [ -n "$$URL_FROM_CONFIG" ]; then
+          DASHBOARD_URL="$$URL_FROM_CONFIG"
+        elif [ -n "$$DASHBOARD_URL" ]; then
+          :
+        else
+          DASHBOARD_URL="http://localhost:8003/"
+        fi
+        printf 'window.AI_RESEARCH_CONFIG = { dashboardUrl: "%s" };\n' "$$DASHBOARD_URL" > "$$CONFIG_FILE"
+        exec python -m http.server 8080 --directory /app/landing
+    ports:
+      - "8004:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     networks:
       - app-network
       - proxy-tier
