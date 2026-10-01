@@ -28,7 +28,25 @@ services:
       - sh
       - -c
       - |
-        printf 'window.AI_RESEARCH_CONFIG = { dashboardUrl: "%s" };\n' "$${DASHBOARD_URL:-http://localhost:8003/}" > /app/landing/config.js
+        CONFIG_FILE=/app/landing/config.js
+        URL_FROM_CONFIG=$$(python - <<'PY'
+        import pathlib
+        import re
+
+        path = pathlib.Path('/app/landing/config.js')
+        text = path.read_text(encoding='utf-8') if path.exists() else ''
+        match = re.search(r'dashboardUrl\s*:\s*["\']([^"\']+)["\']', text)
+        print(match.group(1) if match else '')
+        PY
+        )
+        if [ -n "$$URL_FROM_CONFIG" ]; then
+          DASHBOARD_URL="$$URL_FROM_CONFIG"
+        elif [ -n "$$DASHBOARD_URL" ]; then
+          :
+        else
+          DASHBOARD_URL="http://localhost:8003/"
+        fi
+        printf 'window.AI_RESEARCH_CONFIG = { dashboardUrl: "%s" };\n' "$$DASHBOARD_URL" > "$$CONFIG_FILE"
         exec python -m http.server 8080 --directory /app/landing
     ports:
       - "8004:8080"
