@@ -8,13 +8,14 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
+COPY landing ./landing
 
 RUN pip install --no-cache-dir uv \
     && uv sync --frozen --no-dev
 
 RUN mkdir -p /app/reports /app/sessions
 
-EXPOSE 8000
+EXPOSE 8000 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/_stcore/health', timeout=3)"
